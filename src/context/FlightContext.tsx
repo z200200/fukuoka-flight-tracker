@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useCallback, useEffect } from 'react';
+import { createContext, useContext, useState, useCallback, useEffect, type ReactNode } from 'react';
 import { useOpenSkyApi } from '../hooks/useOpenSkyApi';
 import type { Flight, FlightInfo, StateVector, RateLimitInfo } from '../types/flight';
 
@@ -29,7 +29,7 @@ interface FlightContextType {
 const FlightContext = createContext<FlightContextType | undefined>(undefined);
 
 interface FlightProviderProps {
-  children: React.ReactNode;
+  children: ReactNode;
   clientId: string;
   clientSecret: string;
 }

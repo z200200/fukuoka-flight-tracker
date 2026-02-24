@@ -1,9 +1,20 @@
 import styled from 'styled-components';
 import { FlightList } from './FlightList';
 import { useFlightContext } from '../context/FlightContext';
+import type { Flight, FlightInfo } from '../types/flight';
 
 export function FlightListsContainer() {
   const { arrivals, departures, selectedFlight, selectFlight } = useFlightContext();
+
+  const handleSelectFlight = (flight: FlightInfo | Flight) => {
+    // Only select if it's a Flight (has position data), not FlightInfo
+    if ('latitude' in flight && 'longitude' in flight) {
+      selectFlight(flight as Flight);
+    } else {
+      // For FlightInfo, we can't select it as it doesn't have position data
+      selectFlight(null);
+    }
+  };
 
   return (
     <Container>
@@ -11,7 +22,7 @@ export function FlightListsContainer() {
         title="Arrivals"
         flights={arrivals}
         selectedFlight={selectedFlight}
-        onSelect={selectFlight}
+        onSelect={handleSelectFlight}
         type="arrival"
       />
       <Divider />
@@ -19,7 +30,7 @@ export function FlightListsContainer() {
         title="Departures"
         flights={departures}
         selectedFlight={selectedFlight}
-        onSelect={selectFlight}
+        onSelect={handleSelectFlight}
         type="departure"
       />
     </Container>
