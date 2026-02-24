@@ -1,4 +1,3 @@
-import React from 'react';
 import { FlightProvider } from './context/FlightContext';
 import { DashboardLayout } from './components/DashboardLayout';
 

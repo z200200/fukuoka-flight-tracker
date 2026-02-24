@@ -1,4 +1,3 @@
-import React from 'react';
 import styled from 'styled-components';
 import type { FlightInfo, Flight } from '../types/flight';
 
@@ -71,7 +70,9 @@ export function FlightList({ title, flights, selectedFlight, onSelect, type }: F
                   </Details>
                 )}
 
-                <Country>{flight.originCountry || 'Unknown'}</Country>
+                <Country>
+                  {isFlightInfo(flight) ? 'Unknown' : (flight.originCountry || 'Unknown')}
+                </Country>
               </ListItem>
             );
           })

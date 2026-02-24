@@ -1,4 +1,3 @@
-import React from 'react';
 import styled from 'styled-components';
 import { FlightList } from './FlightList';
 import { useFlightContext } from '../context/FlightContext';
