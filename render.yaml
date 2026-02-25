@@ -11,5 +11,3 @@ services:
         sync: false
       - key: OPENSKY_CLIENT_SECRET
         sync: false
-      - key: PORT
-        value: 3001
