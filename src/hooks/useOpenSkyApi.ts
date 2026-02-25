@@ -16,6 +16,12 @@ interface UseOpenSkyApiResult {
     longitude: number,
     radiusKm?: number
   ) => Promise<StatesResponse | null>;
+  fetchStatesInBounds: (
+    lamin: number,
+    lamax: number,
+    lomin: number,
+    lomax: number
+  ) => Promise<StatesResponse | null>;
   fetchArrivals: (
     airport: string,
     beginTime: number,
@@ -29,10 +35,7 @@ interface UseOpenSkyApiResult {
   fetchTrack: (icao24: string, timestamp?: number) => Promise<FlightTrack | null>;
 }
 
-export function useOpenSkyApi(
-  clientId: string,
-  clientSecret: string
-): UseOpenSkyApiResult {
+export function useOpenSkyApi(): UseOpenSkyApiResult {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<Error | null>(null);
   const [rateLimitInfo, setRateLimitInfo] = useState<RateLimitInfo>({
@@ -44,10 +47,8 @@ export function useOpenSkyApi(
 
   // Initialize client
   useEffect(() => {
-    if (clientId && clientSecret) {
-      clientRef.current = new OpenSkyClient(clientId, clientSecret);
-    }
-  }, [clientId, clientSecret]);
+    clientRef.current = new OpenSkyClient();
+  }, []);
 
   const updateRateLimitInfo = useCallback(() => {
     if (clientRef.current) {
@@ -72,6 +73,39 @@ export function useOpenSkyApi(
       try {
         const result = await withExponentialBackoff(() =>
           clientRef.current!.getFlightsAroundAirport(latitude, longitude, radiusKm)
+        );
+        updateRateLimitInfo();
+        return result;
+      } catch (err) {
+        const error = err instanceof Error ? err : new Error('Unknown error');
+        setError(error);
+        updateRateLimitInfo();
+        return null;
+      } finally {
+        setLoading(false);
+      }
+    },
+    [updateRateLimitInfo]
+  );
+
+  const fetchStatesInBounds = useCallback(
+    async (
+      lamin: number,
+      lamax: number,
+      lomin: number,
+      lomax: number
+    ): Promise<StatesResponse | null> => {
+      if (!clientRef.current) {
+        setError(new Error('OpenSky client not initialized'));
+        return null;
+      }
+
+      setLoading(true);
+      setError(null);
+
+      try {
+        const result = await withExponentialBackoff(() =>
+          clientRef.current!.getStatesInBoundingBox(lamin, lomin, lamax, lomax)
         );
         updateRateLimitInfo();
         return result;
@@ -184,6 +218,7 @@ export function useOpenSkyApi(
     error,
     rateLimitInfo,
     fetchStatesAroundAirport,
+    fetchStatesInBounds,
     fetchArrivals,
     fetchDepartures,
     fetchTrack,

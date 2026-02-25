@@ -25,5 +25,11 @@ dist-ssr
 
 # Environment variables
 .env
+server/.env
+server/.env.local
 
 .vercel
+
+# Temporary files
+clipboard.png
+save_clipboard.ps1

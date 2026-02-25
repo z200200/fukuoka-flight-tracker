@@ -18,21 +18,25 @@ export function FlightListsContainer() {
 
   return (
     <Container>
-      <FlightList
-        title="Arrivals"
-        flights={arrivals}
-        selectedFlight={selectedFlight}
-        onSelect={handleSelectFlight}
-        type="arrival"
-      />
+      <ListWrapper>
+        <FlightList
+          title="到达航班"
+          flights={arrivals}
+          selectedFlight={selectedFlight}
+          onSelect={handleSelectFlight}
+          type="arrival"
+        />
+      </ListWrapper>
       <Divider />
-      <FlightList
-        title="Departures"
-        flights={departures}
-        selectedFlight={selectedFlight}
-        onSelect={handleSelectFlight}
-        type="departure"
-      />
+      <ListWrapper>
+        <FlightList
+          title="出发航班"
+          flights={departures}
+          selectedFlight={selectedFlight}
+          onSelect={handleSelectFlight}
+          type="departure"
+        />
+      </ListWrapper>
     </Container>
   );
 }
@@ -42,6 +46,13 @@ const Container = styled.div`
   flex-direction: column;
   height: 100%;
   background: white;
+  overflow: hidden;
+`;
+
+const ListWrapper = styled.div`
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
 `;
 
 const Divider = styled.div`

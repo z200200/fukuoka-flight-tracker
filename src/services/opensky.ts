@@ -3,28 +3,19 @@ import type {
   StatesResponse,
   FlightInfo,
   FlightTrack,
-  TokenResponse,
   RateLimitInfo,
 } from '../types/flight';
 
-const BASE_URL = 'https://opensky-network.org/api';
-const AUTH_URL =
-  'https://auth.opensky-network.org/auth/realms/opensky-network/protocol/openid-connect/token';
+const BASE_URL = 'http://localhost:3001/api';
 
 export class OpenSkyClient {
   private axiosInstance: AxiosInstance;
-  private token: string | null = null;
-  private tokenExpiry: number = 0;
-  private clientId: string;
-  private clientSecret: string;
   public rateLimitInfo: RateLimitInfo = {
     remaining: null,
     retryAfterSeconds: null,
   };
 
-  constructor(clientId: string, clientSecret: string) {
-    this.clientId = clientId;
-    this.clientSecret = clientSecret;
+  constructor() {
     this.axiosInstance = axios.create({
       baseURL: BASE_URL,
       timeout: 30000,
@@ -57,73 +48,16 @@ export class OpenSkyClient {
     );
   }
 
-  private async getAccessToken(): Promise<string> {
-    // Return cached token if still valid (with 1 minute buffer)
-    if (this.token && Date.now() < this.tokenExpiry - 60000) {
-      return this.token;
-    }
-
-    try {
-      const response = await axios.post<TokenResponse>(
-        AUTH_URL,
-        new URLSearchParams({
-          grant_type: 'client_credentials',
-          client_id: this.clientId,
-          client_secret: this.clientSecret,
-        }).toString(),
-        {
-          headers: {
-            'Content-Type': 'application/x-www-form-urlencoded',
-          },
-        }
-      );
-
-      this.token = response.data.access_token;
-      this.tokenExpiry = Date.now() + response.data.expires_in * 1000;
-
-      return this.token;
-    } catch (error) {
-      console.error('Failed to get OAuth2 token:', error);
-      throw new Error('Authentication failed');
-    }
-  }
-
-  private async makeAuthenticatedRequest<T>(
-    endpoint: string,
-    params: Record<string, string | number> = {}
-  ): Promise<T> {
-    const token = await this.getAccessToken();
-
-    try {
-      const response = await this.axiosInstance.get<T>(endpoint, {
-        params,
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-      });
-
-      return response.data;
-    } catch (error: any) {
-      if (error.response?.status === 429) {
-        const retryAfter = this.rateLimitInfo.retryAfterSeconds || 60;
-        throw new Error(`Rate limited. Retry after ${retryAfter} seconds`);
-      }
-      throw error;
-    }
-  }
-
   async getStatesInBoundingBox(
     lamin: number,
     lomin: number,
     lamax: number,
     lomax: number
   ): Promise<StatesResponse> {
-    return this.makeAuthenticatedRequest<StatesResponse>('/states/all', {
-      lamin,
-      lomin,
-      lamax,
-      lomax,
+    const response = await this.axiosInstance.get<StatesResponse>('/states/all', {
+      params: { lamin, lomin, lamax, lomax }
     });
+    return response.data;
   }
 
   async getAirportArrivals(
@@ -131,11 +65,10 @@ export class OpenSkyClient {
     beginTime: number,
     endTime: number
   ): Promise<FlightInfo[]> {
-    return this.makeAuthenticatedRequest<FlightInfo[]>('/flights/arrival', {
-      airport,
-      begin: beginTime,
-      end: endTime,
+    const response = await this.axiosInstance.get<FlightInfo[]>('/flights/arrival', {
+      params: { airport, begin: beginTime, end: endTime }
     });
+    return response.data;
   }
 
   async getAirportDepartures(
@@ -143,18 +76,17 @@ export class OpenSkyClient {
     beginTime: number,
     endTime: number
   ): Promise<FlightInfo[]> {
-    return this.makeAuthenticatedRequest<FlightInfo[]>('/flights/departure', {
-      airport,
-      begin: beginTime,
-      end: endTime,
+    const response = await this.axiosInstance.get<FlightInfo[]>('/flights/departure', {
+      params: { airport, begin: beginTime, end: endTime }
     });
+    return response.data;
   }
 
   async getFlightTrack(icao24: string, timestamp: number = 0): Promise<FlightTrack> {
-    return this.makeAuthenticatedRequest<FlightTrack>('/tracks', {
-      icao24: icao24.toLowerCase(),
-      time: timestamp,
+    const response = await this.axiosInstance.get<FlightTrack>('/tracks', {
+      params: { icao24: icao24.toLowerCase(), time: timestamp }
     });
+    return response.data;
   }
 
   async getFlightsAroundAirport(
@@ -178,30 +110,31 @@ export class OpenSkyClient {
 // Exponential backoff utility
 export async function withExponentialBackoff<T>(
   fn: () => Promise<T>,
-  maxRetries: number = 3,
-  baseDelay: number = 1000
+  maxRetries: number = 5,
+  baseDelay: number = 2000
 ): Promise<T> {
   let attempt = 0;
 
   while (attempt < maxRetries) {
     try {
       return await fn();
-    } catch (error: any) {
+    } catch (error: unknown) {
       attempt++;
 
       if (attempt >= maxRetries) {
         throw error;
       }
 
-      if (error.message?.includes('Rate limited')) {
+      const errorMessage = error instanceof Error ? error.message : '';
+      if (errorMessage.includes('Rate limited')) {
         // Extract retry time from error message or use exponential backoff
-        const match = error.message.match(/Retry after (\d+) seconds/);
+        const match = errorMessage.match(/Retry after (\d+) seconds/);
         const retrySeconds = match ? parseInt(match[1], 10) : 0;
         const delay = retrySeconds
-          ? retrySeconds * 1000
+          ? Math.min(retrySeconds * 1000, 120000)
           : baseDelay * Math.pow(2, attempt);
 
-        console.log(`Rate limited. Retrying after ${delay}ms...`);
+        console.log(`Rate limited. Retrying after ${delay}ms (attempt ${attempt}/${maxRetries})...`);
         await new Promise((resolve) => setTimeout(resolve, delay));
       } else {
         // For other errors, use exponential backoff
