@@ -1,0 +1,15 @@
+services:
+  - type: web
+    name: fukuoka-flight-tracker-api
+    runtime: node
+    region: singapore
+    plan: free
+    buildCommand: cd server && npm install
+    startCommand: cd server && npm start
+    envVars:
+      - key: OPENSKY_CLIENT_ID
+        sync: false
+      - key: OPENSKY_CLIENT_SECRET
+        sync: false
+      - key: PORT
+        value: 3001
