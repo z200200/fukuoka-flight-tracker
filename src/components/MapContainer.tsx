@@ -157,6 +157,38 @@ export function MapContainer() {
     fetchFlightsInBounds(bounds);
   }, [fetchFlightsInBounds]);
 
+  // Helper: calculate distance between two points (in km)
+  const getDistance = (lat1: number, lon1: number, lat2: number, lon2: number): number => {
+    const R = 6371; // Earth's radius in km
+    const dLat = (lat2 - lat1) * Math.PI / 180;
+    const dLon = (lon2 - lon1) * Math.PI / 180;
+    const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+              Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+              Math.sin(dLon / 2) * Math.sin(dLon / 2);
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+    return R * c;
+  };
+
+  // Helper: find the nearest airport for a flight (handles multi-airport regions like Tokyo)
+  const getNearestAirportCoords = (flightLat: number, flightLon: number): [number, number] => {
+    if (currentAirport.subAirports && currentAirport.subAirports.length > 0) {
+      // Find the nearest sub-airport
+      let nearestDist = Infinity;
+      let nearestCoords: [number, number] = [currentAirport.latitude, currentAirport.longitude];
+
+      for (const sub of currentAirport.subAirports) {
+        const dist = getDistance(flightLat, flightLon, sub.latitude, sub.longitude);
+        if (dist < nearestDist) {
+          nearestDist = dist;
+          nearestCoords = [sub.latitude, sub.longitude];
+        }
+      }
+      return nearestCoords;
+    }
+    // Single airport
+    return [currentAirport.latitude, currentAirport.longitude];
+  };
+
   // Generate real flight tracks from track data
   const realFlightTracks = useMemo(() => {
     const tracks: Array<{
@@ -178,11 +210,12 @@ export function MapContainer() {
           hasTrack: true,
         });
       } else {
-        // Fallback: draw line from airport to current position
+        // Fallback: draw line from nearest airport to current position
+        const airportCoords = getNearestAirportCoords(flight.latitude, flight.longitude);
         tracks.push({
           icao24: flight.icao24,
           positions: [
-            [currentAirport.latitude, currentAirport.longitude] as [number, number],
+            airportCoords,
             [flight.latitude, flight.longitude] as [number, number],
           ],
           hasTrack: false,
@@ -273,30 +306,60 @@ export function MapContainer() {
           url="https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png"
         />
 
-        {/* Airport marker */}
-        <Marker position={[currentAirport.latitude, currentAirport.longitude]}>
-          <Popup>
-            <PopupContent>
-              <PopupTitle>{currentAirport.fullName} ({currentAirport.icao}/{currentAirport.iata})</PopupTitle>
-              <PopupInfo>
-                <InfoRow>
-                  <Label>{t.icaoCode}:</Label>
-                  <Value>{currentAirport.icao}</Value>
-                </InfoRow>
-                <InfoRow>
-                  <Label>{t.iataCode}:</Label>
-                  <Value>{currentAirport.iata}</Value>
-                </InfoRow>
-                <InfoRow>
-                  <Label>{t.coordinates}:</Label>
-                  <Value>
-                    {currentAirport.latitude.toFixed(4)}, {currentAirport.longitude.toFixed(4)}
-                  </Value>
-                </InfoRow>
-              </PopupInfo>
-            </PopupContent>
-          </Popup>
-        </Marker>
+        {/* Airport marker(s) - show sub-airports if available */}
+        {currentAirport.subAirports && currentAirport.subAirports.length > 0 ? (
+          // Multiple airports (e.g., Tokyo)
+          currentAirport.subAirports.map((sub) => (
+            <Marker key={sub.icao} position={[sub.latitude, sub.longitude]}>
+              <Popup>
+                <PopupContent>
+                  <PopupTitle>{sub.name} ({sub.icao}/{sub.iata})</PopupTitle>
+                  <PopupInfo>
+                    <InfoRow>
+                      <Label>{t.icaoCode}:</Label>
+                      <Value>{sub.icao}</Value>
+                    </InfoRow>
+                    <InfoRow>
+                      <Label>{t.iataCode}:</Label>
+                      <Value>{sub.iata}</Value>
+                    </InfoRow>
+                    <InfoRow>
+                      <Label>{t.coordinates}:</Label>
+                      <Value>
+                        {sub.latitude.toFixed(4)}, {sub.longitude.toFixed(4)}
+                      </Value>
+                    </InfoRow>
+                  </PopupInfo>
+                </PopupContent>
+              </Popup>
+            </Marker>
+          ))
+        ) : (
+          // Single airport
+          <Marker position={[currentAirport.latitude, currentAirport.longitude]}>
+            <Popup>
+              <PopupContent>
+                <PopupTitle>{currentAirport.fullName} ({currentAirport.icao}/{currentAirport.iata})</PopupTitle>
+                <PopupInfo>
+                  <InfoRow>
+                    <Label>{t.icaoCode}:</Label>
+                    <Value>{currentAirport.icao}</Value>
+                  </InfoRow>
+                  <InfoRow>
+                    <Label>{t.iataCode}:</Label>
+                    <Value>{currentAirport.iata}</Value>
+                  </InfoRow>
+                  <InfoRow>
+                    <Label>{t.coordinates}:</Label>
+                    <Value>
+                      {currentAirport.latitude.toFixed(4)}, {currentAirport.longitude.toFixed(4)}
+                    </Value>
+                  </InfoRow>
+                </PopupInfo>
+              </PopupContent>
+            </Popup>
+          </Marker>
+        )}
 
         {/* Radius circle around airport */}
         <Circle

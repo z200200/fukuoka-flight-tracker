@@ -1,5 +1,13 @@
 // Airport configuration for flight tracking
 
+export interface SubAirport {
+	name: string;
+	icao: string;
+	iata: string;
+	latitude: number;
+	longitude: number;
+}
+
 export interface AirportConfig {
 	id: string;
 	name: string;
@@ -10,6 +18,7 @@ export interface AirportConfig {
 	longitude: number;
 	radiusKm: number;
 	description: string;
+	subAirports?: SubAirport[];  // 多机场区域（如东京）
 }
 
 export const AIRPORTS: Record<string, AirportConfig> = {
@@ -30,10 +39,26 @@ export const AIRPORTS: Record<string, AirportConfig> = {
 		fullName: "东京机场（成田+羽田）",
 		icao: "RJTT/RJAA",
 		iata: "HND/NRT",
-		latitude: 35.657,  // 两机场中心点
+		latitude: 35.657,  // 两机场中心点（仅用于地图中心）
 		longitude: 140.083,
 		radiusKm: 120,  // 扩大范围覆盖两个机场
 		description: "东京羽田+成田机场",
+		subAirports: [
+			{
+				name: "羽田",
+				icao: "RJTT",
+				iata: "HND",
+				latitude: 35.5534,
+				longitude: 139.7811,
+			},
+			{
+				name: "成田",
+				icao: "RJAA",
+				iata: "NRT",
+				latitude: 35.7720,
+				longitude: 140.3929,
+			},
+		],
 	},
 	incheon: {
 		id: "incheon",
