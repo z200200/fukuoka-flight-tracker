@@ -224,7 +224,7 @@ function updateTrackCache(aircraft) {
 // ADSB.LOL API 请求
 async function fetchAdsbLol(lat, lon, dist) {
   try {
-    const url = `https://api.adsb.lol/v2/lat/${lat}/lon/${lon}/dist/${dist}`;
+    const url = `https://api.adsb.lol/v2/point/${lat}/${lon}/${dist}`;
     console.log(`[ADSB.LOL] Fetching: ${url}`);
 
     const response = await axios.get(url, { timeout: 15000 });
