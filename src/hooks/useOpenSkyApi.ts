@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { OpenSkyClient, withExponentialBackoff } from '../services/opensky';
+import { OpenSkyClient, withExponentialBackoff, type RouteInfo } from '../services/opensky';
 import type {
   StatesResponse,
   FlightInfo,
@@ -33,6 +33,16 @@ interface UseOpenSkyApiResult {
     endTime: number
   ) => Promise<FlightInfo[] | null>;
   fetchTrack: (icao24: string, timestamp?: number) => Promise<FlightTrack | null>;
+  // ADSB.LOL methods
+  fetchAircraftAdsbLol: (
+    latitude: number,
+    longitude: number,
+    radiusNm?: number
+  ) => Promise<StatesResponse | null>;
+  fetchTrackAdsbLol: (icao24: string) => Promise<FlightTrack | null>;
+  fetchAllTracksAdsbLol: () => Promise<{ tracks: Record<string, [number, number][]>; count: number } | null>;
+  // HexDB.io route lookup
+  fetchRoutesByCallsigns: (callsigns: string[]) => Promise<Record<string, RouteInfo> | null>;
 }
 
 export function useOpenSkyApi(): UseOpenSkyApiResult {
@@ -213,6 +223,85 @@ export function useOpenSkyApi(): UseOpenSkyApiResult {
     [updateRateLimitInfo]
   );
 
+  // ========== ADSB.LOL Methods ==========
+
+  const fetchAircraftAdsbLol = useCallback(
+    async (
+      latitude: number,
+      longitude: number,
+      radiusNm: number = 100
+    ): Promise<StatesResponse | null> => {
+      if (!clientRef.current) {
+        return null;
+      }
+
+      setLoading(true);
+      try {
+        const result = await clientRef.current.getAircraftFromAdsbLol(latitude, longitude, radiusNm);
+        return result;
+      } catch (err) {
+        console.error('[ADSB.LOL] Error fetching aircraft:', err);
+        return null;
+      } finally {
+        setLoading(false);
+      }
+    },
+    []
+  );
+
+  const fetchTrackAdsbLol = useCallback(
+    async (icao24: string): Promise<FlightTrack | null> => {
+      if (!clientRef.current) {
+        return null;
+      }
+
+      try {
+        const result = await clientRef.current.getTrackFromAdsbLol(icao24);
+        return result;
+      } catch (err) {
+        console.error('[ADSB.LOL] Error fetching track:', err);
+        return null;
+      }
+    },
+    []
+  );
+
+  const fetchAllTracksAdsbLol = useCallback(
+    async (): Promise<{ tracks: Record<string, [number, number][]>; count: number } | null> => {
+      if (!clientRef.current) {
+        return null;
+      }
+
+      try {
+        const result = await clientRef.current.getAllTracksFromAdsbLol();
+        return result;
+      } catch (err) {
+        console.error('[ADSB.LOL] Error fetching all tracks:', err);
+        return null;
+      }
+    },
+    []
+  );
+
+  // ========== HexDB.io Route Lookup ==========
+
+  const fetchRoutesByCallsigns = useCallback(
+    async (callsigns: string[]): Promise<Record<string, RouteInfo> | null> => {
+      if (!clientRef.current || callsigns.length === 0) {
+        return null;
+      }
+
+      try {
+        const result = await clientRef.current.getRoutesByCallsigns(callsigns);
+        return result.routes;
+      } catch (err) {
+        console.error('[HexDB] Error fetching routes:', err);
+        return null;
+      }
+    },
+    []
+  );
+
   return {
     loading,
     error,
@@ -222,5 +311,11 @@ export function useOpenSkyApi(): UseOpenSkyApiResult {
     fetchArrivals,
     fetchDepartures,
     fetchTrack,
+    // ADSB.LOL
+    fetchAircraftAdsbLol,
+    fetchTrackAdsbLol,
+    fetchAllTracksAdsbLol,
+    // HexDB.io
+    fetchRoutesByCallsigns,
   };
 }

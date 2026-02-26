@@ -1,18 +1,25 @@
 import styled from 'styled-components';
 import { FlightList } from './FlightList';
 import { useFlightContext } from '../context/FlightContext';
+import { useLanguage } from '../context/LanguageContext';
 import type { Flight, FlightInfo } from '../types/flight';
 
 export function FlightListsContainer() {
-  const { arrivals, departures, selectedFlight, selectFlight } = useFlightContext();
+  const { arrivals, departures, selectedFlight, selectFlight, currentAirport, flightRoutes, flights } = useFlightContext();
+  const { t } = useLanguage();
 
   const handleSelectFlight = (flight: FlightInfo | Flight) => {
-    // Only select if it's a Flight (has position data), not FlightInfo
+    // 如果是Flight对象（有位置数据），直接选中
     if ('latitude' in flight && 'longitude' in flight) {
       selectFlight(flight as Flight);
     } else {
-      // For FlightInfo, we can't select it as it doesn't have position data
-      selectFlight(null);
+      // 如果是FlightInfo，通过icao24找到对应的实时飞机
+      const matchingFlight = flights.find(f => f.icao24 === flight.icao24);
+      if (matchingFlight) {
+        selectFlight(matchingFlight);
+      } else {
+        selectFlight(null);
+      }
     }
   };
 
@@ -20,21 +27,25 @@ export function FlightListsContainer() {
     <Container>
       <ListWrapper>
         <FlightList
-          title="到达航班"
+          title={t.arrivals}
           flights={arrivals}
           selectedFlight={selectedFlight}
           onSelect={handleSelectFlight}
           type="arrival"
+          currentAirportIcao={currentAirport.icao}
+          flightRoutes={flightRoutes}
         />
       </ListWrapper>
       <Divider />
       <ListWrapper>
         <FlightList
-          title="出发航班"
+          title={t.departures}
           flights={departures}
           selectedFlight={selectedFlight}
           onSelect={handleSelectFlight}
           type="departure"
+          currentAirportIcao={currentAirport.icao}
+          flightRoutes={flightRoutes}
         />
       </ListWrapper>
     </Container>
@@ -45,7 +56,7 @@ const Container = styled.div`
   display: flex;
   flex-direction: column;
   height: 100%;
-  background: white;
+  background: linear-gradient(180deg, #0a0a12 0%, #0f0f1a 100%);
   overflow: hidden;
 `;
 
@@ -56,7 +67,7 @@ const ListWrapper = styled.div`
 `;
 
 const Divider = styled.div`
-  height: 2px;
-  background: #e0e0e0;
+  height: 1px;
+  background: linear-gradient(90deg, transparent 0%, rgba(0, 255, 255, 0.3) 50%, transparent 100%);
   flex-shrink: 0;
 `;

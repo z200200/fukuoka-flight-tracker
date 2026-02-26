@@ -10,7 +10,7 @@
 ### 阶段 A：任务开始时（必做）
 ```
 📋 任务开始检查：
-- [ ] 已阅读全局 CLAUDE.md（C:\Users\dake.su\Projects\CLAUDE.md）
+- [ ] 已阅读全局 CLAUDE.md（项目根目录/../CLAUDE.md）
 - [ ] 已阅读项目 CLAUDE.md
 - [ ] 已识别本次任务涉及的规范条目
 - [ ] 输出：本次任务需遵守的规范摘要

@@ -24,16 +24,27 @@ export const AIRPORTS: Record<string, AirportConfig> = {
 		radiusKm: 100,
 		description: "日本福冈国际机场",
 	},
-	dubai: {
-		id: "dubai",
-		name: "迪拜",
-		fullName: "迪拜国际机场",
-		icao: "OMDB",
-		iata: "DXB",
-		latitude: 25.2532,
-		longitude: 55.3657,
+	tokyo: {
+		id: "tokyo",
+		name: "东京",
+		fullName: "东京机场（成田+羽田）",
+		icao: "RJTT/RJAA",
+		iata: "HND/NRT",
+		latitude: 35.657,  // 两机场中心点
+		longitude: 140.083,
+		radiusKm: 120,  // 扩大范围覆盖两个机场
+		description: "东京羽田+成田机场",
+	},
+	incheon: {
+		id: "incheon",
+		name: "首尔",
+		fullName: "首尔仁川机场",
+		icao: "RKSI",
+		iata: "ICN",
+		latitude: 37.4602,
+		longitude: 126.4407,
 		radiusKm: 100,
-		description: "世界最繁忙的24小时机场",
+		description: "韩国最大国际机场",
 	},
 };
 

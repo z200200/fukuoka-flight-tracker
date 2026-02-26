@@ -1,7 +1,11 @@
-import { createContext, useContext, useState, useCallback, useEffect, type ReactNode } from 'react';
+import { createContext, useContext, useState, useCallback, useEffect, useRef, type ReactNode } from 'react';
 import { useOpenSkyApi } from '../hooks/useOpenSkyApi';
 import type { Flight, FlightInfo, StateVector, RateLimitInfo, TrackWaypoint } from '../types/flight';
 import { AIRPORTS, DEFAULT_AIRPORT, type AirportId, type AirportConfig } from '../config/airports';
+import type { RouteInfo } from '../services/opensky';
+
+// 航线信息类型
+export type { RouteInfo } from '../services/opensky';
 
 interface MapBounds {
   lamin: number;
@@ -13,6 +17,7 @@ interface MapBounds {
 interface FlightContextType {
   flights: Flight[];
   flightTracks: Map<string, TrackWaypoint[]>;
+  flightRoutes: Map<string, RouteInfo>;
   arrivals: FlightInfo[];
   departures: FlightInfo[];
   selectedFlight: Flight | null;
@@ -42,12 +47,14 @@ interface FlightProviderProps {
 export function FlightProvider({ children }: FlightProviderProps) {
   const [flights, setFlights] = useState<Flight[]>([]);
   const [flightTracks, setFlightTracks] = useState<Map<string, TrackWaypoint[]>>(new Map());
+  const [flightRoutes, setFlightRoutes] = useState<Map<string, RouteInfo>>(new Map());
   const [arrivals, setArrivals] = useState<FlightInfo[]>([]);
   const [departures, setDepartures] = useState<FlightInfo[]>([]);
+  const fetchedRoutesRef = useRef<Set<string>>(new Set()); // 已查询过的呼号
   const [selectedFlight, setSelectedFlight] = useState<Flight | null>(null);
   const [selectedFlightTrack, setSelectedFlightTrack] = useState<TrackWaypoint[] | null>(null);
   const [lastUpdate, setLastUpdate] = useState<Date | null>(null);
-  const [timeRangeHours, setTimeRangeHours] = useState(2); // Default ±2 hours
+  const [timeRangeHours, setTimeRangeHours] = useState(12); // Default 12 hours history
   const [currentAirportId, setCurrentAirportId] = useState<AirportId>(DEFAULT_AIRPORT);
   const [mapBounds, setMapBounds] = useState<MapBounds | null>(null);
 
@@ -58,6 +65,8 @@ export function FlightProvider({ children }: FlightProviderProps) {
     console.log(`[FlightContext] Switching to airport: ${airportId}`);
     setFlights([]);
     setFlightTracks(new Map());
+    setFlightRoutes(new Map()); // 清除航线缓存
+    fetchedRoutesRef.current.clear(); // 重置已查询列表
     setArrivals([]);
     setDepartures([]);
     setSelectedFlight(null);
@@ -72,9 +81,12 @@ export function FlightProvider({ children }: FlightProviderProps) {
     rateLimitInfo,
     fetchStatesAroundAirport,
     fetchStatesInBounds,
-    fetchArrivals,
-    fetchDepartures,
     fetchTrack,
+    // ADSB.LOL (无速率限制)
+    fetchAircraftAdsbLol,
+    fetchAllTracksAdsbLol,
+    // HexDB.io 航线查询
+    fetchRoutesByCallsigns,
   } = useOpenSkyApi();
 
   // OpenSky API returns states as arrays, convert to objects
@@ -151,64 +163,52 @@ export function FlightProvider({ children }: FlightProviderProps) {
 
   const refreshData = useCallback(async () => {
     try {
-      const now = Math.floor(Date.now() / 1000);
-      const timeRange = timeRangeHours * 3600; // Convert hours to seconds
-      const beginTime = now - timeRange;
-      const endTime = now + timeRange;
+      // 手动刷新：重新获取飞机位置数据
+      // 到达/出发航班会自动从实时飞机数据推断
+      console.log(`[FlightContext] Manual refresh for ${currentAirport.name}: fetching aircraft...`);
 
-      // Sequential requests with delays to avoid rate limiting
-      console.log(`[FlightContext] Manual refresh for ${currentAirport.name}: fetching states...`);
-      const statesResponse = await fetchStatesAroundAirport(
+      // 优先使用 adsb.lol
+      const adsbResponse = await fetchAircraftAdsbLol(
         currentAirport.latitude,
         currentAirport.longitude,
-        currentAirport.radiusKm
+        Math.round(currentAirport.radiusKm * 0.54)
       );
 
-      // Process states (API returns arrays, need to convert to objects)
-      if (statesResponse?.states) {
-        const flightData = (statesResponse.states as unknown as unknown[][])
-          .map(parseStateArray)
+      if (adsbResponse?.states && Array.isArray(adsbResponse.states)) {
+        // adsb.lol returns objects directly, cast to unknown first
+        const states = adsbResponse.states as unknown as Array<{
+          icao24: string;
+          callsign: string;
+          latitude: number | null;
+          longitude: number | null;
+          baro_altitude: number | null;
+          velocity: number | null;
+          true_track: number | null;
+          on_ground: boolean;
+          origin_country: string;
+        }>;
+        const flightData = states
           .filter((state) => state.latitude !== null && state.longitude !== null)
-          .map(convertStateVectorToFlight);
+          // 过滤掉地面上静止的飞机（速度<5m/s约18km/h），保留正在滑行或刚降落的
+          .filter((state) => !state.on_ground || (state.velocity && state.velocity > 5))
+          .map((state) => ({
+            icao24: state.icao24,
+            callsign: state.callsign?.trim() || null,
+            latitude: state.latitude as number,
+            longitude: state.longitude as number,
+            altitude: state.baro_altitude,
+            velocity: state.velocity,
+            heading: state.true_track,
+            onGround: state.on_ground,
+            originCountry: state.origin_country,
+            lastContact: Math.floor(Date.now() / 1000),
+            departureAirport: null,
+            arrivalAirport: null,
+          }));
         setFlights(flightData);
-        console.log(`[FlightContext] Manual refresh: ${flightData.length} aircraft`);
+        console.log(`[FlightContext] Manual refresh: ${flightData.length} aircraft from adsb.lol`);
       } else {
-        setFlights([]);
-      }
-
-      // Wait before next request
-      await new Promise(resolve => setTimeout(resolve, 3000));
-
-      console.log(`[FlightContext] Manual refresh for ${currentAirport.name}: fetching arrivals...`);
-      const arrivalsData = await fetchArrivals(currentAirport.icao, beginTime, endTime);
-      setArrivals(arrivalsData || []);
-
-      await new Promise(resolve => setTimeout(resolve, 3000));
-
-      console.log(`[FlightContext] Manual refresh for ${currentAirport.name}: fetching departures...`);
-      const departuresData = await fetchDepartures(currentAirport.icao, beginTime, endTime);
-      setDepartures(departuresData || []);
-
-      setLastUpdate(new Date());
-      console.log('[FlightContext] Manual refresh complete');
-    } catch (err) {
-      console.error('[FlightContext] Failed to refresh flight data:', err);
-    }
-  }, [
-    timeRangeHours,
-    currentAirport,
-    fetchStatesAroundAirport,
-    fetchArrivals,
-    fetchDepartures,
-    parseStateArray,
-    convertStateVectorToFlight,
-  ]);
-
-  // Initial fetch only (no auto-refresh, manual refresh via button)
-  useEffect(() => {
-    const fetchStates = async () => {
-      try {
-        console.log(`[FlightContext] Fetching aircraft states for ${currentAirport.name}...`);
+        // 回退到 OpenSky
         const statesResponse = await fetchStatesAroundAirport(
           currentAirport.latitude,
           currentAirport.longitude,
@@ -221,10 +221,111 @@ export function FlightProvider({ children }: FlightProviderProps) {
             .filter((state) => state.latitude !== null && state.longitude !== null)
             .map(convertStateVectorToFlight);
           setFlights(flightData);
-          console.log(`[FlightContext] Fetched ${flightData.length} aircraft for ${currentAirport.name}`);
+          console.log(`[FlightContext] Manual refresh: ${flightData.length} aircraft from OpenSky`);
         } else {
           setFlights([]);
-          console.log(`[FlightContext] No aircraft data received for ${currentAirport.name}`);
+        }
+      }
+
+      setLastUpdate(new Date());
+      console.log('[FlightContext] Manual refresh complete (arrivals/departures auto-inferred)');
+    } catch (err) {
+      console.error('[FlightContext] Failed to refresh flight data:', err);
+    }
+  }, [
+    currentAirport,
+    fetchAircraftAdsbLol,
+    fetchStatesAroundAirport,
+    parseStateArray,
+    convertStateVectorToFlight,
+  ]);
+
+  // 页面可见性状态
+  const [isPageVisible, setIsPageVisible] = useState(!document.hidden);
+
+  // 监听页面可见性变化（后台暂停轮询，节省资源）
+  useEffect(() => {
+    const handleVisibilityChange = () => {
+      const visible = !document.hidden;
+      setIsPageVisible(visible);
+      console.log(`[FlightContext] Page visibility changed: ${visible ? 'visible' : 'hidden'}`);
+    };
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
+  }, []);
+
+  // 使用 adsb.lol 获取飞机位置（无速率限制，支持自动刷新）
+  useEffect(() => {
+    const fetchStates = async () => {
+      // 页面不可见时跳过请求
+      if (document.hidden) {
+        console.log('[FlightContext] Page hidden, skipping fetch');
+        return;
+      }
+
+      try {
+        console.log(`[FlightContext] Fetching aircraft from adsb.lol for ${currentAirport.name}...`);
+
+        // 优先使用 adsb.lol（无速率限制）
+        const adsbResponse = await fetchAircraftAdsbLol(
+          currentAirport.latitude,
+          currentAirport.longitude,
+          Math.round(currentAirport.radiusKm * 0.54) // km to nautical miles
+        );
+
+        if (adsbResponse?.states && Array.isArray(adsbResponse.states)) {
+          // adsb.lol 返回的是已经解析好的对象格式
+          const states = adsbResponse.states as unknown as Array<{
+            icao24: string;
+            callsign: string;
+            latitude: number | null;
+            longitude: number | null;
+            baro_altitude: number | null;
+            velocity: number | null;
+            true_track: number | null;
+            on_ground: boolean;
+            origin_country: string;
+          }>;
+          const flightData = states
+            .filter((state) => state.latitude !== null && state.longitude !== null)
+            // 过滤掉地面上静止的飞机（速度<5m/s约18km/h），保留正在滑行或刚降落的
+            .filter((state) => !state.on_ground || (state.velocity && state.velocity > 5))
+            .map((state) => ({
+              icao24: state.icao24,
+              callsign: state.callsign?.trim() || null,
+              latitude: state.latitude as number,
+              longitude: state.longitude as number,
+              altitude: state.baro_altitude,
+              velocity: state.velocity,
+              heading: state.true_track,
+              onGround: state.on_ground,
+              originCountry: state.origin_country,
+              lastContact: Math.floor(Date.now() / 1000),
+              departureAirport: null,
+              arrivalAirport: null,
+            }));
+          setFlights(flightData);
+          console.log(`[FlightContext] adsb.lol: ${flightData.length} aircraft for ${currentAirport.name}`);
+        } else {
+          // 回退到 OpenSky
+          console.log(`[FlightContext] adsb.lol failed, falling back to OpenSky...`);
+          const statesResponse = await fetchStatesAroundAirport(
+            currentAirport.latitude,
+            currentAirport.longitude,
+            currentAirport.radiusKm
+          );
+
+          if (statesResponse?.states) {
+            const flightData = (statesResponse.states as unknown as unknown[][])
+              .map(parseStateArray)
+              .filter((state) => state.latitude !== null && state.longitude !== null)
+              .map(convertStateVectorToFlight);
+            setFlights(flightData);
+            console.log(`[FlightContext] OpenSky: ${flightData.length} aircraft for ${currentAirport.name}`);
+          } else {
+            setFlights([]);
+          }
         }
 
         setLastUpdate(new Date());
@@ -233,56 +334,144 @@ export function FlightProvider({ children }: FlightProviderProps) {
       }
     };
 
-    fetchStates(); // Initial fetch only, no interval
-  }, [currentAirport, fetchStatesAroundAirport, parseStateArray, convertStateVectorToFlight]);
+    fetchStates(); // 初始获取
 
-  // Fetch arrival/departure lists once (no auto-refresh, manual refresh via button)
-  // Note: This API requires authentication and has strict rate limits
+    // 自动刷新（每10秒，页面可见时）
+    const interval = setInterval(fetchStates, 10000);
+    return () => clearInterval(interval);
+  }, [currentAirport, fetchAircraftAdsbLol, fetchStatesAroundAirport, parseStateArray, convertStateVectorToFlight, isPageVisible]);
+
+  // 从实时飞机数据推断到达/出发航班（替代被限流的OpenSky API）
+  // 逻辑：
+  // - 到达：下降中（垂直速率<0）或低空（<3000m）接近机场的飞机
+  // - 出发：上升中（垂直速率>0）或刚起飞离开机场的飞机
   useEffect(() => {
-    const fetchFlightLists = async () => {
-      try {
-        const now = Math.floor(Date.now() / 1000);
-        const timeRange = timeRangeHours * 3600;
-        const beginTime = now - timeRange;
-        const endTime = now + timeRange;
+    if (flights.length === 0) {
+      setArrivals([]);
+      setDepartures([]);
+      return;
+    }
 
-        // Sequential requests with delay to avoid rate limiting
-        console.log(`[FlightContext] Fetching arrivals for ${currentAirport.name}...`);
-        const arrivalsData = await fetchArrivals(currentAirport.icao, beginTime, endTime);
-        if (Array.isArray(arrivalsData)) {
-          setArrivals(arrivalsData);
-          console.log(`[FlightContext] Fetched ${arrivalsData.length} arrivals for ${currentAirport.name}`);
-        } else {
-          console.log(`[FlightContext] Arrivals API rate limited or unavailable`);
-          setArrivals([]);
+    // 检查ICAO代码是否匹配当前机场（支持多机场如东京 RJTT/RJAA）
+    const matchesAirport = (icao: string | null) => {
+      if (!icao) return false;
+      const airportIcaos = currentAirport.icao.split('/');
+      return airportIcaos.includes(icao);
+    };
+
+    // 计算两点间距离（km）
+    const getDistance = (lat1: number, lon1: number, lat2: number, lon2: number) => {
+      const R = 6371; // 地球半径（km）
+      const dLat = (lat2 - lat1) * Math.PI / 180;
+      const dLon = (lon2 - lon1) * Math.PI / 180;
+      const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+        Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+        Math.sin(dLon / 2) * Math.sin(dLon / 2);
+      const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+      return R * c;
+    };
+
+    const airportLat = currentAirport.latitude;
+    const airportLon = currentAirport.longitude;
+    const now = Math.floor(Date.now() / 1000);
+
+    const inferredArrivals: FlightInfo[] = [];
+    const inferredDepartures: FlightInfo[] = [];
+
+    flights.forEach(flight => {
+      if (!flight.callsign) return; // 跳过无呼号的航班
+
+      const distance = getDistance(flight.latitude, flight.longitude, airportLat, airportLon);
+      const altitude = flight.altitude || 0;
+      const isOnGround = flight.onGround;
+
+      // 获取航线信息
+      const route = flightRoutes.get(flight.callsign);
+
+      // 判断是到达还是出发
+      // 使用机场配置的范围（radiusKm）
+      const inRange = distance < currentAirport.radiusKm;
+
+      // 到达条件（优先根据航线信息判断）：
+      // 1. 航线目的地是当前机场（支持多机场如东京 RJTT/RJAA）
+      // 2. 或者在范围内且高度较低（正在降落）
+      const isArrival = matchesAirport(route?.destination || null) ||
+        (inRange && !route && altitude < 5000);
+
+      // 出发条件（优先根据航线信息判断）：
+      // 1. 航线出发地是当前机场（支持多机场如东京 RJTT/RJAA）
+      // 2. 或者在机场附近地面 或 刚起飞
+      const isDeparture = matchesAirport(route?.origin || null) ||
+        (distance < 20 && (isOnGround || altitude < 2000));
+
+      // 创建FlightInfo对象
+      const flightInfo: FlightInfo = {
+        icao24: flight.icao24,
+        callsign: flight.callsign,
+        firstSeen: now - 3600, // 假设1小时前首次看到
+        lastSeen: now,
+        estDepartureAirport: route?.origin || null,
+        estArrivalAirport: route?.destination || currentAirport.icao,
+        estDepartureAirportHorizDistance: null,
+        estDepartureAirportVertDistance: null,
+        estArrivalAirportHorizDistance: Math.round(distance * 1000),
+        estArrivalAirportVertDistance: altitude ? Math.round(altitude) : null,
+        departureAirportCandidatesCount: 1,
+        arrivalAirportCandidatesCount: 1,
+      };
+
+      // 根据航线信息和位置分类
+      if (route) {
+        // 有航线信息，优先使用（支持多机场如东京 RJTT/RJAA）
+        if (matchesAirport(route.destination)) {
+          inferredArrivals.push({
+            ...flightInfo,
+            estArrivalAirport: route.destination, // 保留实际机场代码
+            estDepartureAirport: route.origin,
+          });
+        } else if (matchesAirport(route.origin)) {
+          inferredDepartures.push({
+            ...flightInfo,
+            estDepartureAirport: route.origin, // 保留实际机场代码
+            estArrivalAirport: route.destination,
+          });
+        } else if (inRange) {
+          // 有航线但不经过当前机场，显示为到达（过境航班）
+          inferredArrivals.push({
+            ...flightInfo,
+            estDepartureAirport: route.origin,
+            estArrivalAirport: route.destination,
+          });
         }
-
-        // Wait 5 seconds before next request
-        await new Promise(resolve => setTimeout(resolve, 5000));
-
-        console.log(`[FlightContext] Fetching departures for ${currentAirport.name}...`);
-        const departuresData = await fetchDepartures(currentAirport.icao, beginTime, endTime);
-        if (Array.isArray(departuresData)) {
-          setDepartures(departuresData);
-          console.log(`[FlightContext] Fetched ${departuresData.length} departures for ${currentAirport.name}`);
+      } else if (inRange) {
+        // 无航线信息，根据位置和状态推断
+        if (isArrival) {
+          inferredArrivals.push(flightInfo);
+        } else if (isDeparture) {
+          inferredDepartures.push({
+            ...flightInfo,
+            estDepartureAirport: currentAirport.icao,
+          });
         } else {
-          console.log(`[FlightContext] Departures API rate limited or unavailable`);
-          setDepartures([]);
+          // 默认归类为到达（显示在列表中）
+          inferredArrivals.push(flightInfo);
         }
-      } catch (err) {
-        console.error('[FlightContext] Failed to fetch flight lists (rate limited?):', err);
-        // Don't crash, just set empty arrays
-        setArrivals([]);
-        setDepartures([]);
       }
-    };
+    });
 
-    // Delay initial fetch by 8 seconds to avoid concurrent requests with states
-    const initialTimeout = setTimeout(fetchFlightLists, 8000);
-    return () => {
-      clearTimeout(initialTimeout);
-    };
-  }, [currentAirport, timeRangeHours, fetchArrivals, fetchDepartures]);
+    // 按距离排序（最近的在前）
+    inferredArrivals.sort((a, b) =>
+      (a.estArrivalAirportHorizDistance || 0) - (b.estArrivalAirportHorizDistance || 0)
+    );
+    inferredDepartures.sort((a, b) =>
+      (a.estDepartureAirportHorizDistance || 0) - (b.estDepartureAirportHorizDistance || 0)
+    );
+
+    setArrivals(inferredArrivals);
+    setDepartures(inferredDepartures);
+
+    console.log(`[FlightContext] Inferred flights: ${inferredArrivals.length} arrivals, ${inferredDepartures.length} departures`);
+  }, [flights, flightRoutes, currentAirport]);
 
   // Parse track waypoint array to object
   // Array format: [time, latitude, longitude, baro_altitude, true_track, on_ground]
@@ -297,53 +486,109 @@ export function FlightProvider({ children }: FlightProviderProps) {
     };
   }, []);
 
-  // Fetch flight tracks for all aircraft (limited to avoid rate limiting)
-  // Only fetches once when flights change, no auto-refresh
+  // 使用 adsb.lol 缓存的航迹（服务器自动收集）
   useEffect(() => {
-    const MAX_TRACKS_TO_FETCH = 3; // Reduced to avoid API rate limiting
-    const DELAY_BETWEEN_REQUESTS = 5000; // 5 seconds between each request
-
     const fetchAllTracks = async () => {
-      if (flights.length === 0) return;
+      // 页面不可见或无飞机时跳过
+      if (document.hidden || flights.length === 0) return;
 
-      // Only fetch tracks for flights not on ground
-      const airborneFlights = flights.filter(f => !f.onGround).slice(0, MAX_TRACKS_TO_FETCH);
+      try {
+        // 从服务器获取所有缓存的航迹
+        const tracksData = await fetchAllTracksAdsbLol();
 
-      if (airborneFlights.length === 0) {
-        console.log('[FlightContext] No airborne flights to fetch tracks for');
-        return;
-      }
+        if (tracksData?.tracks) {
+          const newTracks = new Map<string, TrackWaypoint[]>();
 
-      console.log(`[FlightContext] Fetching tracks for ${airborneFlights.length} aircraft...`);
-      const newTracks = new Map<string, TrackWaypoint[]>();
-
-      for (const flight of airborneFlights) {
-        try {
-          const trackData = await fetchTrack(flight.icao24);
-          if (trackData?.path && Array.isArray(trackData.path) && trackData.path.length > 0) {
-            // Convert array format to TrackWaypoint objects
-            const waypoints = (trackData.path as unknown as unknown[][]).map(parseTrackWaypoint);
-            newTracks.set(flight.icao24, waypoints);
-            console.log(`[FlightContext] Track for ${flight.callsign || flight.icao24}: ${waypoints.length} waypoints`);
+          for (const [icao, points] of Object.entries(tracksData.tracks)) {
+            if (points.length >= 2) {
+              // 转换为 TrackWaypoint 格式
+              const waypoints: TrackWaypoint[] = points.map((p: [number, number], i: number) => ({
+                time: Math.floor(Date.now() / 1000) - (points.length - i) * 30,
+                latitude: p[0],
+                longitude: p[1],
+                baro_altitude: null,
+                true_track: 0,
+                on_ground: false,
+              }));
+              newTracks.set(icao, waypoints);
+            }
           }
-          // Wait between requests to avoid rate limiting
-          await new Promise(resolve => setTimeout(resolve, DELAY_BETWEEN_REQUESTS));
-        } catch (err) {
-          console.warn(`[FlightContext] Failed to fetch track for ${flight.icao24}:`, err);
+
+          setFlightTracks(newTracks);
+          console.log(`[FlightContext] adsb.lol tracks: ${newTracks.size} aircraft with trails`);
         }
+      } catch (err) {
+        console.warn('[FlightContext] Failed to fetch adsb.lol tracks:', err);
       }
-
-      setFlightTracks(newTracks);
-      console.log(`[FlightContext] Fetched ${newTracks.size} flight tracks`);
     };
 
-    // Delay initial track fetch to avoid concurrent requests
-    const timeout = setTimeout(fetchAllTracks, 10000);
+    // 每30秒更新航迹（降低频率，航迹数据变化慢）
+    fetchAllTracks();
+    const interval = setInterval(fetchAllTracks, 30000);
+    return () => clearInterval(interval);
+  }, [flights, fetchAllTracksAdsbLol, isPageVisible]);
 
-    return () => {
-      clearTimeout(timeout);
+  // 使用 HexDB.io 查询航线信息（包括实时飞机和航班列表）
+  useEffect(() => {
+    const fetchRoutes = async () => {
+      // 收集所有需要查询的呼号（未查询过的）
+      const callsignsToFetch: string[] = [];
+
+      // 从实时飞机收集呼号
+      flights.forEach(f => {
+        if (f.callsign && !fetchedRoutesRef.current.has(f.callsign)) {
+          callsignsToFetch.push(f.callsign);
+        }
+      });
+
+      // 从到达航班收集呼号
+      arrivals.forEach(f => {
+        const cs = f.callsign?.trim();
+        if (cs && !fetchedRoutesRef.current.has(cs)) {
+          callsignsToFetch.push(cs);
+        }
+      });
+
+      // 从出发航班收集呼号
+      departures.forEach(f => {
+        const cs = f.callsign?.trim();
+        if (cs && !fetchedRoutesRef.current.has(cs)) {
+          callsignsToFetch.push(cs);
+        }
+      });
+
+      // 去重
+      const uniqueCallsigns = [...new Set(callsignsToFetch)];
+      if (uniqueCallsigns.length === 0) return;
+
+      // 标记为已查询
+      uniqueCallsigns.forEach(cs => fetchedRoutesRef.current.add(cs));
+
+      try {
+        console.log(`[FlightContext] Fetching routes for ${uniqueCallsigns.length} callsigns...`);
+        const routes = await fetchRoutesByCallsigns(uniqueCallsigns);
+
+        if (routes) {
+          setFlightRoutes(prev => {
+            const newMap = new Map(prev);
+            Object.entries(routes).forEach(([cs, route]) => {
+              if (route.origin || route.destination) {
+                newMap.set(cs, route);
+              }
+            });
+            console.log(`[FlightContext] Routes updated: ${newMap.size} total`);
+            return newMap;
+          });
+        }
+      } catch (err) {
+        console.warn('[FlightContext] Failed to fetch routes:', err);
+      }
     };
-  }, [flights, fetchTrack, parseTrackWaypoint]);
+
+    // 延迟1秒后获取，避免与其他请求冲突
+    const timeout = setTimeout(fetchRoutes, 1000);
+    return () => clearTimeout(timeout);
+  }, [flights, arrivals, departures, fetchRoutesByCallsigns]);
 
   const selectFlight = useCallback(async (flight: Flight | null) => {
     setSelectedFlight(flight);
@@ -376,6 +621,7 @@ export function FlightProvider({ children }: FlightProviderProps) {
   const value: FlightContextType = {
     flights,
     flightTracks,
+    flightRoutes,
     arrivals,
     departures,
     selectedFlight,

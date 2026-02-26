@@ -105,6 +105,56 @@ export class OpenSkyClient {
 
     return this.getStatesInBoundingBox(lamin, lomin, lamax, lomax);
   }
+
+  // ========== ADSB.LOL Methods (无速率限制) ==========
+
+  // 使用 adsb.lol 获取飞机位置
+  async getAircraftFromAdsbLol(
+    latitude: number,
+    longitude: number,
+    radiusNm: number = 100
+  ): Promise<StatesResponse> {
+    const response = await this.axiosInstance.get<StatesResponse>('/adsb/aircraft', {
+      params: { lat: latitude, lon: longitude, dist: radiusNm }
+    });
+    return response.data;
+  }
+
+  // 获取 adsb.lol 缓存的航迹
+  async getTrackFromAdsbLol(icao24: string): Promise<FlightTrack> {
+    const response = await this.axiosInstance.get<FlightTrack>(`/adsb/track/${icao24.toLowerCase()}`);
+    return response.data;
+  }
+
+  // 获取所有缓存的航迹
+  async getAllTracksFromAdsbLol(): Promise<{ tracks: Record<string, [number, number][]>; count: number }> {
+    const response = await this.axiosInstance.get('/adsb/tracks');
+    return response.data;
+  }
+
+  // ========== HexDB.io Route Lookup Methods ==========
+
+  // 航线信息类型
+  async getRouteByCallsign(callsign: string): Promise<RouteInfo> {
+    const response = await this.axiosInstance.get<RouteInfo>(`/route/${callsign}`);
+    return response.data;
+  }
+
+  // 批量获取航线信息
+  async getRoutesByCallsigns(callsigns: string[]): Promise<{ routes: Record<string, RouteInfo>; count: number }> {
+    const response = await this.axiosInstance.get('/routes', {
+      params: { callsigns: callsigns.join(',') }
+    });
+    return response.data;
+  }
+}
+
+// 航线信息类型
+export interface RouteInfo {
+  callsign: string;
+  origin: string | null;
+  destination: string | null;
+  route: string | null;
 }
 
 // Exponential backoff utility

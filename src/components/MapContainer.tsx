@@ -1,7 +1,8 @@
-import { useMemo, useEffect, useRef, useCallback } from 'react';
+import React, { useMemo, useEffect, useRef, useCallback } from 'react';
 import { MapContainer as LeafletMap, TileLayer, Marker, Popup, Circle, Polyline, useMap } from 'react-leaflet';
 import L from 'leaflet';
 import { useFlightContext } from '../context/FlightContext';
+import { useLanguage } from '../context/LanguageContext';
 import styled from 'styled-components';
 import 'leaflet/dist/leaflet.css';
 
@@ -32,11 +33,30 @@ function MapEventsHandler({
   const prevCoordsRef = useRef({ latitude, longitude });
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
+  // 窗口大小变化时重新计算地图大小
+  useEffect(() => {
+    const handleResize = () => {
+      setTimeout(() => {
+        map.invalidateSize();
+      }, 100);
+    };
+
+    window.addEventListener('resize', handleResize);
+    // 初始化时也调用一次
+    handleResize();
+
+    return () => {
+      window.removeEventListener('resize', handleResize);
+    };
+  }, [map]);
+
   // Handle airport change - move map to new location
   useEffect(() => {
     if (prevCoordsRef.current.latitude !== latitude || prevCoordsRef.current.longitude !== longitude) {
       map.setView([latitude, longitude], 9, { animate: true });
       prevCoordsRef.current = { latitude, longitude };
+      // 切换机场时也重新计算大小
+      setTimeout(() => map.invalidateSize(), 100);
     }
   }, [map, latitude, longitude]);
 
@@ -74,47 +94,63 @@ function MapEventsHandler({
   return null;
 }
 
-// Create a custom plane icon with glow effect (Apple Music style)
+// Create a custom plane icon with glow effect
 const createPlaneIcon = (heading: number | null, isSelected: boolean) => {
   const rotation = heading !== null ? heading : 0;
-  const mainColor = isSelected ? '#FC5C7D' : '#FFFFFF';
-  const glowColor = isSelected ? 'rgba(250, 35, 59, 0.7)' : 'rgba(255, 255, 255, 0.4)';
-  const pulseAnimation = isSelected ? 'pulse-selected' : 'pulse-normal';
+  const mainColor = isSelected ? '#FF6B6B' : '#333333';
+  const iconSize = isSelected ? 44 : 32;
 
+  if (isSelected) {
+    // 选中状态：柔和的珊瑚红 + 轻微发光
+    return L.divIcon({
+      className: 'custom-plane-icon selected-plane',
+      html: `
+        <div style="
+          transform: rotate(${rotation}deg);
+          width: ${iconSize}px;
+          height: ${iconSize}px;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          filter: drop-shadow(0 0 6px rgba(255, 107, 107, 0.6)) drop-shadow(0 0 12px rgba(255, 107, 107, 0.4));
+        ">
+          <svg width="${iconSize}" height="${iconSize}" viewBox="0 0 24 24" fill="${mainColor}"
+               stroke="#FFFFFF" stroke-width="0.5">
+            <path d="M21,16v-2l-8-5V3.5C13,2.67,12.33,2,11.5,2S10,2.67,10,3.5V9l-8,5v2l8-2.5V19l-2,1.5V22l3.5-1l3.5,1v-1.5L13,19v-5.5L21,16z"/>
+          </svg>
+        </div>
+      `,
+      iconSize: [iconSize, iconSize],
+      iconAnchor: [iconSize / 2, iconSize / 2],
+    });
+  }
+
+  // 普通状态：深灰色
   return L.divIcon({
     className: 'custom-plane-icon',
     html: `
-      <style>
-        @keyframes pulse-selected {
-          0%, 100% { filter: drop-shadow(0 0 10px ${glowColor}); }
-          50% { filter: drop-shadow(0 0 20px ${glowColor}); }
-        }
-        @keyframes pulse-normal {
-          0%, 100% { filter: drop-shadow(0 0 4px ${glowColor}); }
-          50% { filter: drop-shadow(0 0 8px ${glowColor}); }
-        }
-      </style>
       <div style="
         transform: rotate(${rotation}deg);
-        width: 28px;
-        height: 28px;
+        width: ${iconSize}px;
+        height: ${iconSize}px;
         display: flex;
         align-items: center;
         justify-content: center;
-        animation: ${pulseAnimation} 2s ease-in-out infinite;
       ">
-        <svg width="28" height="28" viewBox="0 0 24 24" fill="${mainColor}" style="filter: drop-shadow(0 2px 4px rgba(0,0,0,0.5));">
+        <svg width="${iconSize}" height="${iconSize}" viewBox="0 0 24 24" fill="${mainColor}"
+             style="filter: drop-shadow(0 1px 2px rgba(0,0,0,0.3));">
           <path d="M21,16v-2l-8-5V3.5C13,2.67,12.33,2,11.5,2S10,2.67,10,3.5V9l-8,5v2l8-2.5V19l-2,1.5V22l3.5-1l3.5,1v-1.5L13,19v-5.5L21,16z"/>
         </svg>
       </div>
     `,
-    iconSize: [28, 28],
-    iconAnchor: [14, 14],
+    iconSize: [iconSize, iconSize],
+    iconAnchor: [iconSize / 2, iconSize / 2],
   });
 };
 
 export function MapContainer() {
   const { flights, selectedFlight, currentAirport, flightTracks, fetchFlightsInBounds } = useFlightContext();
+  const { t } = useLanguage();
 
   // Handle map bounds change - fetch flights in new area
   const handleBoundsChange = useCallback((bounds: { lamin: number; lamax: number; lomin: number; lomax: number }) => {
@@ -163,39 +199,52 @@ export function MapContainer() {
         const isSelected = selectedFlight?.icao24 === flight.icao24;
         const planeIcon = createPlaneIcon(flight.heading, isSelected);
 
+        // 选中的飞机不显示弹窗（已有绿色高亮效果）
+        if (isSelected) {
+          return (
+            <Marker
+              key={flight.icao24}
+              position={[flight.latitude, flight.longitude]}
+              icon={planeIcon}
+              zIndexOffset={1000}
+            />
+          );
+        }
+
         return (
           <Marker
             key={flight.icao24}
             position={[flight.latitude, flight.longitude]}
             icon={planeIcon}
+            zIndexOffset={0}
           >
             <Popup>
               <PopupContent>
                 <PopupTitle>{flight.callsign || flight.icao24?.toUpperCase() || 'Unknown'}</PopupTitle>
                 <PopupInfo>
                   <InfoRow>
-                    <Label>ICAO24:</Label>
-                    <Value>{flight.icao24?.toUpperCase() || '无'}</Value>
+                    <Label>{t.icao24}:</Label>
+                    <Value>{flight.icao24?.toUpperCase() || t.noData}</Value>
                   </InfoRow>
                   <InfoRow>
-                    <Label>高度:</Label>
-                    <Value>{flight.altitude ? `${Math.round(flight.altitude)}米` : '无'}</Value>
+                    <Label>{t.altitude}:</Label>
+                    <Value>{flight.altitude ? `${Math.round(flight.altitude)}${t.meter}` : t.noData}</Value>
                   </InfoRow>
                   <InfoRow>
-                    <Label>速度:</Label>
-                    <Value>{flight.velocity ? `${Math.round(flight.velocity)}米/秒` : '无'}</Value>
+                    <Label>{t.speed}:</Label>
+                    <Value>{flight.velocity ? `${Math.round(flight.velocity)}${t.meterPerSec}` : t.noData}</Value>
                   </InfoRow>
                   <InfoRow>
-                    <Label>航向:</Label>
-                    <Value>{flight.heading !== null ? `${Math.round(flight.heading)}°` : '无'}</Value>
+                    <Label>{t.heading}:</Label>
+                    <Value>{flight.heading !== null ? `${Math.round(flight.heading)}${t.degree}` : t.noData}</Value>
                   </InfoRow>
                   <InfoRow>
-                    <Label>国家:</Label>
+                    <Label>{t.country}:</Label>
                     <Value>{flight.originCountry}</Value>
                   </InfoRow>
                   <InfoRow>
-                    <Label>状态:</Label>
-                    <Value>{flight.onGround ? '地面' : '空中'}</Value>
+                    <Label>{t.status}:</Label>
+                    <Value>{flight.onGround ? t.onGround : t.inAir}</Value>
                   </InfoRow>
                 </PopupInfo>
               </PopupContent>
@@ -218,9 +267,10 @@ export function MapContainer() {
           longitude={currentAirport.longitude}
           onBoundsChange={handleBoundsChange}
         />
+        {/* 行政区域地图 */}
         <TileLayer
-          attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
-          url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+          attribution='&copy; <a href="https://carto.com/">CARTO</a>'
+          url="https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png"
         />
 
         {/* Airport marker */}
@@ -230,15 +280,15 @@ export function MapContainer() {
               <PopupTitle>{currentAirport.fullName} ({currentAirport.icao}/{currentAirport.iata})</PopupTitle>
               <PopupInfo>
                 <InfoRow>
-                  <Label>ICAO代码:</Label>
+                  <Label>{t.icaoCode}:</Label>
                   <Value>{currentAirport.icao}</Value>
                 </InfoRow>
                 <InfoRow>
-                  <Label>IATA代码:</Label>
+                  <Label>{t.iataCode}:</Label>
                   <Value>{currentAirport.iata}</Value>
                 </InfoRow>
                 <InfoRow>
-                  <Label>坐标:</Label>
+                  <Label>{t.coordinates}:</Label>
                   <Value>
                     {currentAirport.latitude.toFixed(4)}, {currentAirport.longitude.toFixed(4)}
                   </Value>
@@ -253,27 +303,50 @@ export function MapContainer() {
           center={[currentAirport.latitude, currentAirport.longitude]}
           radius={currentAirport.radiusKm * 1000} // Convert km to meters
           pathOptions={{
-            color: '#3388ff',
-            fillColor: '#3388ff',
-            fillOpacity: 0.05,
-            weight: 2,
-            dashArray: '5, 5',
+            color: '#88bbff',
+            fillColor: '#88bbff',
+            fillOpacity: 0.03,
+            weight: 1.5,
+            dashArray: '8, 6',
           }}
         />
 
-        {/* Real flight tracks */}
-        {realFlightTracks.map((track) => (
-          <Polyline
-            key={`track-${track.icao24}`}
-            positions={track.positions}
-            pathOptions={{
-              color: track.hasTrack ? '#4CAF50' : '#FF5722', // Green for real tracks, orange for fallback
-              weight: track.hasTrack ? 3 : 2,
-              opacity: track.hasTrack ? 0.8 : 0.5,
-              dashArray: track.hasTrack ? undefined : '8, 4', // Solid for real, dashed for fallback
-            }}
-          />
-        ))}
+        {/* Real flight tracks with gradient colors */}
+        {realFlightTracks.map((track) => {
+          if (!track.hasTrack || track.positions.length < 2) {
+            // 估算航线：虚线
+            return (
+              <Polyline
+                key={`track-${track.icao24}`}
+                positions={track.positions}
+                pathOptions={{
+                  color: '#FF6600',
+                  weight: 3,
+                  opacity: 0.7,
+                  dashArray: '10, 6',
+                }}
+              />
+            );
+          }
+          // 真实轨迹：分段渐变颜色（从旧到新：深色到亮色）
+          const segments: React.ReactElement[] = [];
+          const colors = ['#1a1a4e', '#2d2d7a', '#4040a6', '#5353d2', '#6666ff', '#8888ff', '#aaaaff', '#FF6600'];
+          for (let i = 0; i < track.positions.length - 1; i++) {
+            const colorIndex = Math.floor((i / (track.positions.length - 1)) * (colors.length - 1));
+            segments.push(
+              <Polyline
+                key={`track-${track.icao24}-seg-${i}`}
+                positions={[track.positions[i], track.positions[i + 1]]}
+                pathOptions={{
+                  color: colors[colorIndex],
+                  weight: 4,
+                  opacity: 0.9,
+                }}
+              />
+            );
+          }
+          return segments;
+        })}
 
         {/* Flight markers */}
         {markers}
@@ -281,10 +354,43 @@ export function MapContainer() {
 
       <StatusOverlay>
         <StatusText>
-          追踪: {flights.length} 架飞机 |
-          轨迹: {realFlightTracks.filter(t => t.hasTrack).length}/{Math.min(flights.filter(f => !f.onGround).length, 3)}
+          {t.tracking}: {flights.length} {t.aircraft} |
+          {t.tracks}: {realFlightTracks.filter(track => track.hasTrack).length}/{Math.min(flights.filter(f => !f.onGround).length, 3)}
         </StatusText>
       </StatusOverlay>
+
+      {/* Selected aircraft info panel */}
+      {selectedFlight && (
+        <SelectedFlightPanel>
+          <PanelTitle>{selectedFlight.callsign || selectedFlight.icao24?.toUpperCase() || 'Unknown'}</PanelTitle>
+          <PanelContent>
+            <PanelRow>
+              <PanelLabel>{t.icao24}:</PanelLabel>
+              <PanelValue>{selectedFlight.icao24?.toUpperCase() || t.noData}</PanelValue>
+            </PanelRow>
+            <PanelRow>
+              <PanelLabel>{t.altitude}:</PanelLabel>
+              <PanelValue>{selectedFlight.altitude ? `${Math.round(selectedFlight.altitude)}${t.meter}` : t.noData}</PanelValue>
+            </PanelRow>
+            <PanelRow>
+              <PanelLabel>{t.speed}:</PanelLabel>
+              <PanelValue>{selectedFlight.velocity ? `${Math.round(selectedFlight.velocity * 3.6)}${t.kmPerHour}` : t.noData}</PanelValue>
+            </PanelRow>
+            <PanelRow>
+              <PanelLabel>{t.heading}:</PanelLabel>
+              <PanelValue>{selectedFlight.heading !== null ? `${Math.round(selectedFlight.heading)}${t.degree}` : t.noData}</PanelValue>
+            </PanelRow>
+            <PanelRow>
+              <PanelLabel>{t.country}:</PanelLabel>
+              <PanelValue>{selectedFlight.originCountry || t.noData}</PanelValue>
+            </PanelRow>
+            <PanelRow>
+              <PanelLabel>{t.status}:</PanelLabel>
+              <PanelValue>{selectedFlight.onGround ? t.onGround : t.inAir}</PanelValue>
+            </PanelRow>
+          </PanelContent>
+        </SelectedFlightPanel>
+      )}
     </MapWrapper>
   );
 }
@@ -303,9 +409,9 @@ const MapWrapper = styled.div`
     border: none;
   }
 
-  /* Dark map tiles filter - Apple style */
+  /* 地图滤镜 */
   .leaflet-tile-pane {
-    filter: saturate(0.6) brightness(0.7) contrast(1.2);
+    filter: none;
   }
 
   /* Popup styling */
@@ -402,4 +508,71 @@ const Value = styled.span`
   color: white;
   font-weight: 600;
   margin-left: 8px;
+`;
+
+// Selected aircraft info panel
+const SelectedFlightPanel = styled.div`
+  position: absolute;
+  bottom: 20px;
+  left: 50px;
+  background: rgba(28, 28, 30, 0.95);
+  backdrop-filter: blur(20px);
+  padding: 16px 20px;
+  border-radius: 12px;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.4);
+  border: 1px solid rgba(255, 107, 107, 0.3);
+  z-index: 1000;
+  min-width: 200px;
+  animation: slideIn 0.3s ease;
+
+  @keyframes slideIn {
+    from {
+      opacity: 0;
+      transform: translateY(10px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+
+  @media (max-width: 768px) {
+    left: 10px;
+    right: 10px;
+    bottom: 10px;
+    min-width: auto;
+  }
+`;
+
+const PanelTitle = styled.div`
+  font-size: 16px;
+  font-weight: 700;
+  color: #FF6B6B;
+  margin-bottom: 12px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid rgba(255, 107, 107, 0.3);
+  font-family: 'Consolas', 'Monaco', monospace;
+`;
+
+const PanelContent = styled.div`
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+`;
+
+const PanelRow = styled.div`
+  display: flex;
+  justify-content: space-between;
+  font-size: 13px;
+`;
+
+const PanelLabel = styled.span`
+  color: rgba(255, 255, 255, 0.6);
+  font-weight: 500;
+`;
+
+const PanelValue = styled.span`
+  color: white;
+  font-weight: 600;
+  font-family: 'Consolas', 'Monaco', monospace;
 `;
