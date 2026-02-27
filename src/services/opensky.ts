@@ -197,16 +197,24 @@ export interface RouteInfo {
   status?: string | null;         // 航班状态
 }
 
+// 机场/航线信息
+export interface AirportInfo {
+  iata: string;
+  name: string;
+}
+
 // 机场时刻表类型
 export interface ScheduledFlight {
   scheduledTime: string | null;
   actualTime?: string | null;
   flightNumber: string | null;
-  destination?: string | null;
+  origin?: AirportInfo | null;      // 出发机场（到达航班有此字段）
+  destination?: AirportInfo | null;  // 目的机场（出发航班有此字段）
   status?: string | null;
   gate?: string | null;
   terminal?: string | null;
-  airport?: string;
+  airport?: string;      // 匹配到的机场代码 (FUK/HND/NRT/ICN)
+  direction?: string;    // 'arrival' | 'departure'
   airportName?: string;
   found?: boolean;
 }

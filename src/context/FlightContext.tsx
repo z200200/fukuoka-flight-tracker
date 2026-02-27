@@ -744,11 +744,19 @@ export function FlightProvider({ children }: FlightProviderProps) {
               const newMap = new Map(prev);
               Object.entries(scraperResults).forEach(([cs, flight]) => {
                 if (flight) {
-                  // 将爬虫数据转换为 RouteInfo 格式（包含计划时间）
+                  // 提取 IATA 代码（AeroDataBox 返回的是对象 {iata, name}）
+                  const originIata = typeof flight.origin === 'object' && flight.origin?.iata
+                    ? flight.origin.iata
+                    : (typeof flight.origin === 'string' ? flight.origin : null);
+                  const destIata = typeof flight.destination === 'object' && flight.destination?.iata
+                    ? flight.destination.iata
+                    : (typeof flight.destination === 'string' ? flight.destination : null);
+
+                  // 将时刻表数据转换为 RouteInfo 格式
                   newMap.set(cs, {
                     callsign: cs,
-                    origin: flight.airport ? `RJ${flight.airport === 'FUK' ? 'FF' : flight.airport}` : null,
-                    destination: flight.destination || null,
+                    origin: originIata,
+                    destination: destIata,
                     route: null,
                     scheduledTime: flight.scheduledTime || null,
                     actualTime: flight.actualTime || null,
