@@ -4,10 +4,12 @@ services:
     runtime: node
     region: singapore
     plan: free
-    buildCommand: cd server && npm install && npx playwright install chromium --with-deps
+    buildCommand: cd server && npm install && npx playwright install chromium
     startCommand: cd server && npm start
     envVars:
       - key: OPENSKY_CLIENT_ID
         sync: false
       - key: OPENSKY_CLIENT_SECRET
         sync: false
+      - key: PLAYWRIGHT_BROWSERS_PATH
+        value: /opt/render/project/.playwright
