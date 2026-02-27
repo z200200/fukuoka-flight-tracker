@@ -147,6 +147,43 @@ export class OpenSkyClient {
     });
     return response.data;
   }
+
+  // ========== 机场时刻表爬虫 API ==========
+
+  // 获取机场航班时刻表
+  async getAirportSchedule(airportCode: string): Promise<AirportSchedule | null> {
+    try {
+      const response = await this.axiosInstance.get<AirportSchedule>(`/schedule/${airportCode}`);
+      return response.data;
+    } catch (error) {
+      console.warn(`[OpenSkyClient] Failed to fetch schedule for ${airportCode}:`, error);
+      return null;
+    }
+  }
+
+  // 匹配航班号（跨机场搜索）
+  async matchFlightByCallsign(callsign: string): Promise<ScheduledFlight | null> {
+    try {
+      const response = await this.axiosInstance.get<ScheduledFlight>(`/schedule/match/${callsign}`);
+      return response.data?.found === false ? null : response.data;
+    } catch (error) {
+      console.warn(`[OpenSkyClient] Failed to match flight ${callsign}:`, error);
+      return null;
+    }
+  }
+
+  // 批量匹配航班号
+  async matchFlightsByCallsigns(callsigns: string[]): Promise<Record<string, ScheduledFlight | null>> {
+    try {
+      const response = await this.axiosInstance.post<{ results: Record<string, ScheduledFlight | null> }>('/schedule/match', {
+        callsigns
+      });
+      return response.data?.results || {};
+    } catch (error) {
+      console.warn('[OpenSkyClient] Failed to batch match flights:', error);
+      return {};
+    }
+  }
 }
 
 // 航线信息类型
@@ -155,6 +192,32 @@ export interface RouteInfo {
   origin: string | null;
   destination: string | null;
   route: string | null;
+  scheduledTime?: string | null;  // 计划时间 (HH:MM)
+  actualTime?: string | null;     // 实际时间 (HH:MM)
+  status?: string | null;         // 航班状态
+}
+
+// 机场时刻表类型
+export interface ScheduledFlight {
+  scheduledTime: string | null;
+  actualTime?: string | null;
+  flightNumber: string | null;
+  destination?: string | null;
+  status?: string | null;
+  gate?: string | null;
+  terminal?: string | null;
+  airport?: string;
+  airportName?: string;
+  found?: boolean;
+}
+
+export interface AirportSchedule {
+  airport: string;
+  name: string;
+  icao: string;
+  departures: ScheduledFlight[];
+  arrivals: ScheduledFlight[];
+  lastUpdate: number;
 }
 
 // Exponential backoff utility

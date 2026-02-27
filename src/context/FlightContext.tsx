@@ -91,6 +91,8 @@ export function FlightProvider({ children }: FlightProviderProps) {
     fetchAllTracksAdsbLol,
     // HexDB.io 航线查询
     fetchRoutesByCallsigns,
+    // 机场时刻表爬虫
+    matchFlightsByCallsigns,
   } = useOpenSkyApi();
 
   // OpenSky API returns states as arrays, convert to objects
@@ -732,7 +734,10 @@ export function FlightProvider({ children }: FlightProviderProps) {
 
       try {
         console.log(`[FlightContext] Fetching routes for ${uniqueCallsigns.length} callsigns...`);
+
+        // 1. 先从 HexDB.io 获取
         const routes = await fetchRoutesByCallsigns(uniqueCallsigns);
+        const foundCallsigns = new Set<string>();
 
         if (routes) {
           setFlightRoutes(prev => {
@@ -740,12 +745,43 @@ export function FlightProvider({ children }: FlightProviderProps) {
             Object.entries(routes).forEach(([cs, route]) => {
               if (route.origin || route.destination) {
                 newMap.set(cs, route);
+                foundCallsigns.add(cs);
               }
             });
-            console.log(`[FlightContext] Routes updated: ${newMap.size} total`);
             return newMap;
           });
         }
+
+        // 2. 对于 HexDB.io 没有数据的航班，使用机场爬虫
+        const missingCallsigns = uniqueCallsigns.filter(cs => !foundCallsigns.has(cs));
+        if (missingCallsigns.length > 0) {
+          console.log(`[FlightContext] HexDB missing ${missingCallsigns.length} routes, trying airport scraper...`);
+          const scraperResults = await matchFlightsByCallsigns(missingCallsigns);
+
+          if (scraperResults && Object.keys(scraperResults).length > 0) {
+            setFlightRoutes(prev => {
+              const newMap = new Map(prev);
+              Object.entries(scraperResults).forEach(([cs, flight]) => {
+                if (flight) {
+                  // 将爬虫数据转换为 RouteInfo 格式（包含计划时间）
+                  newMap.set(cs, {
+                    callsign: cs,
+                    origin: flight.airport ? `RJ${flight.airport === 'FUK' ? 'FF' : flight.airport}` : null,
+                    destination: flight.destination || null,
+                    route: null,
+                    scheduledTime: flight.scheduledTime || null,
+                    actualTime: flight.actualTime || null,
+                    status: flight.status || null,
+                  });
+                }
+              });
+              console.log(`[FlightContext] Routes updated with scraper: ${newMap.size} total`);
+              return newMap;
+            });
+          }
+        }
+
+        console.log(`[FlightContext] Routes complete: HexDB=${foundCallsigns.size}, Scraper=${missingCallsigns.length}`);
       } catch (err) {
         console.warn('[FlightContext] Failed to fetch routes:', err);
       }
@@ -754,7 +790,7 @@ export function FlightProvider({ children }: FlightProviderProps) {
     // 延迟1秒后获取，避免与其他请求冲突
     const timeout = setTimeout(fetchRoutes, 1000);
     return () => clearTimeout(timeout);
-  }, [flights, arrivals, departures, fetchRoutesByCallsigns]);
+  }, [flights, arrivals, departures, fetchRoutesByCallsigns, matchFlightsByCallsigns]);
 
   const selectFlight = useCallback(async (flight: Flight | null) => {
     setSelectedFlight(flight);

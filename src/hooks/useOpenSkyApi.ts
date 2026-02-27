@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { OpenSkyClient, withExponentialBackoff, type RouteInfo } from '../services/opensky';
+import { OpenSkyClient, withExponentialBackoff, type RouteInfo, type AirportSchedule, type ScheduledFlight } from '../services/opensky';
 import type {
   StatesResponse,
   FlightInfo,
@@ -43,6 +43,9 @@ interface UseOpenSkyApiResult {
   fetchAllTracksAdsbLol: () => Promise<{ tracks: Record<string, [number, number][]>; count: number } | null>;
   // HexDB.io route lookup
   fetchRoutesByCallsigns: (callsigns: string[]) => Promise<Record<string, RouteInfo> | null>;
+  // 机场时刻表爬虫
+  fetchAirportSchedule: (airportCode: string) => Promise<AirportSchedule | null>;
+  matchFlightsByCallsigns: (callsigns: string[]) => Promise<Record<string, ScheduledFlight | null>>;
 }
 
 export function useOpenSkyApi(): UseOpenSkyApiResult {
@@ -302,6 +305,24 @@ export function useOpenSkyApi(): UseOpenSkyApiResult {
     []
   );
 
+  // ========== 机场时刻表爬虫 ==========
+
+  const fetchAirportSchedule = useCallback(
+    async (airportCode: string) => {
+      if (!clientRef.current) return null;
+      return await clientRef.current.getAirportSchedule(airportCode);
+    },
+    []
+  );
+
+  const matchFlightsByCallsigns = useCallback(
+    async (callsigns: string[]) => {
+      if (!clientRef.current || callsigns.length === 0) return {};
+      return await clientRef.current.matchFlightsByCallsigns(callsigns);
+    },
+    []
+  );
+
   return {
     loading,
     error,
@@ -317,5 +338,8 @@ export function useOpenSkyApi(): UseOpenSkyApiResult {
     fetchAllTracksAdsbLol,
     // HexDB.io
     fetchRoutesByCallsigns,
+    // 机场时刻表爬虫
+    fetchAirportSchedule,
+    matchFlightsByCallsigns,
   };
 }

@@ -432,13 +432,30 @@ export function FlightList({ title, flights, selectedFlight, onSelect, type, cur
                       <Airline>{getAirline(flight.callsign, lang)}</Airline>
                     )}
                   </FlightInfoWrapper>
-                  {isFlightInfo(flight) && (
-                    <Time>
-                      {type === 'arrival'
-                        ? formatTime(flight.lastSeen)
-                        : formatTime(flight.firstSeen)}
-                    </Time>
-                  )}
+                  {(() => {
+                    // 优先显示机场爬虫的计划时间
+                    const callsign = flight.callsign?.trim();
+                    const route = callsign ? flightRoutes?.get(callsign) : null;
+                    if (route?.scheduledTime) {
+                      return (
+                        <Time $hasSchedule={true}>
+                          {route.scheduledTime}
+                          {route.status && <Status $status={route.status}>{route.status}</Status>}
+                        </Time>
+                      );
+                    }
+                    // 回退到 ADS-B 时间戳
+                    if (isFlightInfo(flight)) {
+                      return (
+                        <Time $hasSchedule={false}>
+                          {type === 'arrival'
+                            ? formatTime(flight.lastSeen)
+                            : formatTime(flight.firstSeen)}
+                        </Time>
+                      );
+                    }
+                    return null;
+                  })()}
                 </FlightHeader>
 
                 {!isFlightInfo(flight) && (
@@ -590,12 +607,40 @@ const Callsign = styled.span`
   letter-spacing: 1px;
 `;
 
-const Time = styled.div`
+const Time = styled.div<{ $hasSchedule?: boolean }>`
   font-size: 0.75em;  /* 12px -> em for scaling */
-  color: #00ffff;
+  color: ${props => props.$hasSchedule ? '#00ff00' : 'rgba(0, 255, 255, 0.5)'};
   font-weight: 600;
   font-family: 'Consolas', 'Monaco', monospace;
-  text-shadow: 0 0 5px rgba(0, 255, 255, 0.3);
+  text-shadow: ${props => props.$hasSchedule ? '0 0 5px rgba(0, 255, 0, 0.3)' : 'none'};
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 2px;
+`;
+
+const Status = styled.span<{ $status: string }>`
+  font-size: 0.7em;
+  padding: 1px 4px;
+  border-radius: 2px;
+  background: ${props => {
+    const s = props.$status?.toLowerCase() || '';
+    if (s.includes('出发') || s.includes('departed') || s.includes('離陸')) return 'rgba(0, 255, 0, 0.2)';
+    if (s.includes('到达') || s.includes('arrived') || s.includes('着陸')) return 'rgba(0, 255, 255, 0.2)';
+    if (s.includes('延误') || s.includes('delayed') || s.includes('遅延')) return 'rgba(255, 165, 0, 0.2)';
+    if (s.includes('取消') || s.includes('cancelled') || s.includes('欠航')) return 'rgba(255, 0, 0, 0.2)';
+    if (s.includes('登机') || s.includes('boarding') || s.includes('搭乗')) return 'rgba(255, 255, 0, 0.2)';
+    return 'rgba(100, 100, 100, 0.2)';
+  }};
+  color: ${props => {
+    const s = props.$status?.toLowerCase() || '';
+    if (s.includes('出发') || s.includes('departed') || s.includes('離陸')) return '#00ff00';
+    if (s.includes('到达') || s.includes('arrived') || s.includes('着陸')) return '#00ffff';
+    if (s.includes('延误') || s.includes('delayed') || s.includes('遅延')) return '#ffa500';
+    if (s.includes('取消') || s.includes('cancelled') || s.includes('欠航')) return '#ff6666';
+    if (s.includes('登机') || s.includes('boarding') || s.includes('搭乗')) return '#ffff00';
+    return '#888888';
+  }};
 `;
 
 const Route = styled.span`
