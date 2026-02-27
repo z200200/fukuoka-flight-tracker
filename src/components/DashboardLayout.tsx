@@ -115,11 +115,15 @@ export function DashboardLayout() {
             <CountdownGroup>
               <CountdownItem>
                 <CountdownLabel>轨迹更新</CountdownLabel>
-                <CountdownValue>{nextUpdateSeconds}s</CountdownValue>
+                <CountdownBarWrapper>
+                  <CountdownBar style={{ width: `${(nextUpdateSeconds / 10) * 100}%` }} />
+                </CountdownBarWrapper>
               </CountdownItem>
               <CountdownItem>
                 <CountdownLabel>重新扫描</CountdownLabel>
-                <CountdownValue>{Math.floor(nextRescanSeconds / 60)}:{(nextRescanSeconds % 60).toString().padStart(2, '0')}</CountdownValue>
+                <CountdownBarWrapper>
+                  <CountdownBar style={{ width: `${(nextRescanSeconds / 120) * 100}%` }} />
+                </CountdownBarWrapper>
               </CountdownItem>
             </CountdownGroup>
           </HeaderInfo>
@@ -236,17 +240,13 @@ const UpdateTime = styled.div`
 
 const CountdownGroup = styled.div`
   display: flex;
-  gap: 12px;
+  gap: 16px;
 `;
 
 const CountdownItem = styled.div`
   display: flex;
   flex-direction: column;
-  align-items: center;
-  padding: 4px 12px;
-  background: rgba(0, 255, 255, 0.08);
-  border: 1px solid rgba(0, 255, 255, 0.3);
-  border-radius: 4px;
+  gap: 4px;
 `;
 
 const CountdownLabel = styled.div`
@@ -255,12 +255,19 @@ const CountdownLabel = styled.div`
   font-family: 'Consolas', 'Monaco', monospace;
 `;
 
-const CountdownValue = styled.div`
-  font-size: 14px;
-  font-weight: 600;
-  color: #00ffff;
-  font-family: 'Consolas', 'Monaco', monospace;
-  text-shadow: 0 0 8px rgba(0, 255, 255, 0.6);
+const CountdownBarWrapper = styled.div`
+  width: 80px;
+  height: 6px;
+  background: rgba(0, 255, 255, 0.1);
+  border-radius: 3px;
+  overflow: hidden;
+`;
+
+const CountdownBar = styled.div`
+  height: 100%;
+  background: linear-gradient(90deg, rgba(0, 255, 255, 0.4) 0%, rgba(0, 255, 255, 0.8) 100%);
+  transition: width 1s linear;
+  border-radius: 3px;
 `;
 
 const RefreshButton = styled.button`
