@@ -635,6 +635,23 @@ app.listen(PORT, () => {
     console.log(`🔓 Mode: Anonymous (limited to ~100 requests/day)`);
     console.log(`💡 To get higher limits, register at https://opensky-network.org/`);
   }
+
+  // ========== Render 保活机制 ==========
+  // 每14分钟自我 ping，防止 Render 免费版休眠
+  const RENDER_URL = process.env.RENDER_EXTERNAL_URL;
+  if (RENDER_URL) {
+    const KEEPALIVE_INTERVAL = 14 * 60 * 1000; // 14分钟
+    console.log(`🔄 Keepalive enabled: will ping ${RENDER_URL}/health every 14 minutes`);
+
+    setInterval(async () => {
+      try {
+        const response = await axios.get(`${RENDER_URL}/health`, { timeout: 10000 });
+        console.log(`[Keepalive] Ping successful: ${response.data.status}`);
+      } catch (error) {
+        console.warn(`[Keepalive] Ping failed:`, error.message);
+      }
+    }, KEEPALIVE_INTERVAL);
+  }
 });
 
 // 进程退出时关闭浏览器
