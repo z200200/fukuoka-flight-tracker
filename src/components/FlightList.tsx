@@ -322,8 +322,9 @@ export function FlightList({ title, flights, selectedFlight, onSelect, type, cur
     const allFlights = [...flights]
       .filter(f => f != null && f.flightNumber)
       .filter(f => {
-        const fn = f.flightNumber || '';
-        return isValidCallsign(fn);
+        const fn = (f.flightNumber || '').replace(/\s+/g, '').trim();
+        // 航班号必须至少2个字符且包含字母和数字
+        return fn.length >= 2 && /[A-Za-z]/.test(fn) && /[0-9]/.test(fn);
       })
       .sort((a, b) => {
         const aScheduledMinutes = parseTimeToMinutes(a.scheduledTime);
@@ -438,7 +439,7 @@ export function FlightList({ title, flights, selectedFlight, onSelect, type, cur
               >
                 <FlightHeader>
                   <FlightInfoWrapper>
-                    <Callsign>{flight.flightNumber || '-'}</Callsign>
+                    <Callsign>{(flight.flightNumber || '-').replace(/\s+/g, '')}</Callsign>
                     {(() => {
                       // 显示出发地（到达航班）或目的地（出发航班）+ 国家
                       if (type === 'arrival' && flight.origin) {
@@ -470,11 +471,10 @@ export function FlightList({ title, flights, selectedFlight, onSelect, type, cur
                   )}
                 </FlightHeader>
 
-                {/* 显示登机口和航站楼信息 */}
-                {(flight.gate || flight.terminal) && (
+                {/* 显示登机口信息（不显示航站楼） */}
+                {flight.gate && (
                   <Details>
-                    {flight.terminal && <DetailItem>T{flight.terminal}</DetailItem>}
-                    {flight.gate && <DetailItem>Gate {flight.gate}</DetailItem>}
+                    <DetailItem>Gate {flight.gate}</DetailItem>
                   </Details>
                 )}
               </ListItem>
