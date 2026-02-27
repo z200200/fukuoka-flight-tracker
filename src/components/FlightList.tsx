@@ -195,7 +195,7 @@ export function FlightList({ title, flights, selectedFlight, onSelect, type, cur
 
         // 都没有计划时间时，按航班号排序
         return (a.flightNumber || '').localeCompare(b.flightNumber || '');
-      }).slice(0, 20); // 只显示最近20个航班
+      }).slice(0, 10); // 只显示最近10个航班
   }, [flights]);
 
   // Auto-scroll to show the most recent flight (first item) in the middle of visible area

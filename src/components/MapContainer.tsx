@@ -334,7 +334,7 @@ export function MapContainer() {
     });
     // 返回规范化后的 flightNumber 集合
     const callsigns = new Set<string>();
-    sorted.slice(0, 20).forEach(f => {
+    sorted.slice(0, 10).forEach(f => {
       const normalized = normalizeCallsign(f.flightNumber);
       if (normalized) callsigns.add(normalized);
     });
@@ -354,7 +354,7 @@ export function MapContainer() {
     });
     // 返回规范化后的 flightNumber 集合
     const callsigns = new Set<string>();
-    sorted.slice(0, 20).forEach(f => {
+    sorted.slice(0, 10).forEach(f => {
       const normalized = normalizeCallsign(f.flightNumber);
       if (normalized) callsigns.add(normalized);
     });
