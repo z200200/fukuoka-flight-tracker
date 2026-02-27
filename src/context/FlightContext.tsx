@@ -39,6 +39,7 @@ interface FlightContextType {
   // 倒计时
   nextUpdateSeconds: number;   // 下次位置更新倒计时
   nextRescanSeconds: number;   // 下次重新扫描倒计时
+  manualRescan: () => void;    // 手动重新扫描
 }
 
 const FlightContext = createContext<FlightContextType | undefined>(undefined);
@@ -757,6 +758,7 @@ export function FlightProvider({ children }: FlightProviderProps) {
     fetchFlightsInBounds,
     nextUpdateSeconds,
     nextRescanSeconds,
+    manualRescan: scanAircraft,
   };
 
   return <FlightContext.Provider value={value}>{children}</FlightContext.Provider>;

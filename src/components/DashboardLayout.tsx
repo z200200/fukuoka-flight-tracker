@@ -10,7 +10,7 @@ import { AIRPORTS, type AirportId } from '../config/airports';
 
 export function DashboardLayout() {
   const { width } = useWindowSize();
-  const { loading, error, lastUpdate, refreshData, currentAirportId, setCurrentAirport, flights, nextUpdateSeconds, nextRescanSeconds } = useFlightContext();
+  const { loading, error, lastUpdate, refreshData, currentAirportId, setCurrentAirport, flights, nextUpdateSeconds, nextRescanSeconds, manualRescan } = useFlightContext();
   const { lang, setLang, t } = useLanguage();
   const [showHelp, setShowHelp] = useState(true);
   const [showMobileMenu, setShowMobileMenu] = useState(false);
@@ -119,12 +119,12 @@ export function DashboardLayout() {
                   <CountdownBar style={{ width: `${(nextUpdateSeconds / 3) * 100}%` }} />
                 </CountdownBarWrapper>
               </CountdownItem>
-              <CountdownItem>
+              <CountdownItemClickable onClick={manualRescan} title="Click to rescan now">
                 <CountdownLabel>{t.rescan} ({Math.floor(nextRescanSeconds / 60)}:{(nextRescanSeconds % 60).toString().padStart(2, '0')})</CountdownLabel>
                 <CountdownBarWrapper>
                   <CountdownBar style={{ width: `${(nextRescanSeconds / 120) * 100}%` }} />
                 </CountdownBarWrapper>
-              </CountdownItem>
+              </CountdownItemClickable>
             </CountdownGroup>
           </HeaderInfo>
           <LanguageSwitch>
@@ -247,6 +247,21 @@ const CountdownItem = styled.div`
   display: flex;
   flex-direction: column;
   gap: 4px;
+`;
+
+const CountdownItemClickable = styled(CountdownItem)`
+  cursor: pointer;
+  padding: 4px 8px;
+  border-radius: 4px;
+  transition: background 0.2s;
+
+  &:hover {
+    background: rgba(0, 255, 255, 0.1);
+  }
+
+  &:active {
+    background: rgba(0, 255, 255, 0.2);
+  }
 `;
 
 const CountdownLabel = styled.div`
