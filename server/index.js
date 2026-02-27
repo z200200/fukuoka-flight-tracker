@@ -2,7 +2,8 @@ import express from 'express';
 import cors from 'cors';
 import axios from 'axios';
 import dotenv from 'dotenv';
-import { getAirportFlights, matchFlightAcrossAirports, getAirportList, closeBrowser } from './airport-scraper.js';
+// AeroDataBox API (替代 Playwright 爬虫)
+import { getAirportSchedule, matchFlight, getSupportedAirports, getApiStats } from './aerodatabox.js';
 
 dotenv.config();
 
@@ -510,51 +511,26 @@ function getCountryFromReg(reg) {
   return countries[prefix] || countries[reg[0]] || 'Unknown';
 }
 
-// ========== 航班时刻表 API (机场官网爬虫) ==========
+// ========== 航班时刻表 API (AeroDataBox) ==========
 
-// 测试 Playwright 和浏览器状态
-app.get('/api/schedule/debug', async (req, res) => {
-  const { getBrowserStatus } = await import('./airport-scraper.js');
-  const { chromium } = await import('playwright');
-
-  const status = getBrowserStatus();
-  const result = {
-    ...status,
+// API状态和统计
+app.get('/api/schedule/debug', (req, res) => {
+  const stats = getApiStats();
+  res.json({
+    ...stats,
     timestamp: new Date().toISOString(),
     nodeVersion: process.version,
+    dataSource: 'AeroDataBox',
     env: {
       RENDER: process.env.RENDER || 'false',
-      HOME: process.env.HOME,
-      PLAYWRIGHT_BROWSERS_PATH: process.env.PLAYWRIGHT_BROWSERS_PATH || '(not set)'
+      RAPIDAPI_KEY_SET: !!process.env.RAPIDAPI_KEY
     }
-  };
-
-  try {
-    const browser = await chromium.launch({
-      headless: true,
-      args: [
-        '--no-sandbox',
-        '--disable-setuid-sandbox',
-        '--disable-dev-shm-usage',
-        '--disable-gpu',
-        '--single-process'
-      ]
-    });
-    result.browserTest = 'ok';
-    result.browserVersion = browser.version();
-    await browser.close();
-  } catch (error) {
-    result.browserTest = 'failed';
-    result.browserError = error.message;
-    result.browserStack = error.stack?.split('\n').slice(0, 5);
-  }
-
-  res.json(result);
+  });
 });
 
 // 获取支持的机场列表
 app.get('/api/schedule/airports', (req, res) => {
-  res.json(getAirportList());
+  res.json(getSupportedAirports());
 });
 
 // 获取指定机场的航班时刻表
@@ -563,9 +539,9 @@ app.get('/api/schedule/:airport', async (req, res) => {
   const forceRefresh = req.query.refresh === 'true';
 
   try {
-    const data = await getAirportFlights(airport, forceRefresh);
-    if (!data) {
-      return res.status(404).json({ error: `Unknown airport: ${airport}` });
+    const data = await getAirportSchedule(airport, forceRefresh);
+    if (data.error) {
+      return res.status(404).json({ error: data.error });
     }
     res.json(data);
   } catch (error) {
@@ -579,7 +555,7 @@ app.get('/api/schedule/match/:callsign', async (req, res) => {
   const callsign = req.params.callsign;
 
   try {
-    const match = await matchFlightAcrossAirports(callsign);
+    const match = await matchFlight(callsign);
     res.json(match || { callsign, found: false });
   } catch (error) {
     console.error(`[Schedule API] Match error:`, error.message);
@@ -597,7 +573,7 @@ app.post('/api/schedule/match', express.json(), async (req, res) => {
 
   const results = {};
   for (const cs of callsigns.slice(0, 50)) { // 限制50个
-    results[cs] = await matchFlightAcrossAirports(cs);
+    results[cs] = await matchFlight(cs);
   }
 
   res.json({ matches: results, count: Object.keys(results).length });
@@ -628,11 +604,17 @@ app.get('/health', (req, res) => {
 app.listen(PORT, () => {
   console.log(`🚀 Proxy server running on http://localhost:${PORT}`);
   console.log(`📡 Proxying OpenSky Network API requests`);
-  console.log(`🛫 Airport schedule scraper enabled (FUK, HND, NRT, ICN)`);
-  if (hasCredentials) {
-    console.log(`🔐 Mode: Authenticated (higher rate limits)`);
+  console.log(`🛫 Airport schedule API enabled (AeroDataBox)`);
+  console.log(`   Supported airports: FUK, HND, NRT, ICN`);
+  if (process.env.RAPIDAPI_KEY) {
+    console.log(`🔑 AeroDataBox API key configured`);
   } else {
-    console.log(`🔓 Mode: Anonymous (limited to ~100 requests/day)`);
+    console.warn(`⚠️  RAPIDAPI_KEY not set - schedule API will not work`);
+  }
+  if (hasCredentials) {
+    console.log(`🔐 OpenSky Mode: Authenticated (higher rate limits)`);
+  } else {
+    console.log(`🔓 OpenSky Mode: Anonymous (limited to ~100 requests/day)`);
     console.log(`💡 To get higher limits, register at https://opensky-network.org/`);
   }
 
@@ -654,14 +636,12 @@ app.listen(PORT, () => {
   }
 });
 
-// 进程退出时关闭浏览器
-process.on('SIGINT', async () => {
+// 优雅关闭
+process.on('SIGINT', () => {
   console.log('\n🛑 Shutting down...');
-  await closeBrowser();
   process.exit(0);
 });
 
-process.on('SIGTERM', async () => {
-  await closeBrowser();
+process.on('SIGTERM', () => {
   process.exit(0);
 });

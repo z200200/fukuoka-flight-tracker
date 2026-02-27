@@ -11,5 +11,5 @@ services:
         sync: false
       - key: OPENSKY_CLIENT_SECRET
         sync: false
-      - key: PLAYWRIGHT_BROWSERS_PATH
-        value: /opt/render/project/.playwright
+      - key: RAPIDAPI_KEY
+        sync: false
