@@ -114,11 +114,11 @@ export function DashboardLayout() {
           <HeaderInfo>
             <CountdownGroup>
               <CountdownItem>
-                <CountdownLabel>位置</CountdownLabel>
+                <CountdownLabel>轨迹更新</CountdownLabel>
                 <CountdownValue>{nextUpdateSeconds}s</CountdownValue>
               </CountdownItem>
               <CountdownItem>
-                <CountdownLabel>扫描</CountdownLabel>
+                <CountdownLabel>重新扫描</CountdownLabel>
                 <CountdownValue>{Math.floor(nextRescanSeconds / 60)}:{(nextRescanSeconds % 60).toString().padStart(2, '0')}</CountdownValue>
               </CountdownItem>
             </CountdownGroup>
