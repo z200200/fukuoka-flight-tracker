@@ -1,26 +1,30 @@
 import styled from 'styled-components';
 import { FlightList } from './FlightList';
-import { useFlightContext } from '../context/FlightContext';
+import { useFlightContext, type ScheduledFlight } from '../context/FlightContext';
 import { useLanguage } from '../context/LanguageContext';
-import type { Flight, FlightInfo } from '../types/flight';
+
+// 规范化callsign格式（去掉空格，转大写）- 用于匹配
+function normalizeCallsign(callsign: string | null | undefined): string | null {
+  if (!callsign) return null;
+  return callsign.trim().replace(/\s+/g, '').toUpperCase();
+}
 
 export function FlightListsContainer() {
   const { arrivals, departures, selectedFlight, selectFlight, currentAirport, flightRoutes, flights } = useFlightContext();
   const { t } = useLanguage();
 
-  const handleSelectFlight = (flight: FlightInfo | Flight) => {
-    // 如果是Flight对象（有位置数据），直接选中
-    if ('latitude' in flight && 'longitude' in flight) {
-      selectFlight(flight as Flight);
-    } else {
-      // 如果是FlightInfo，通过icao24找到对应的实时飞机
-      const matchingFlight = flights.find(f => f.icao24 === flight.icao24);
+  const handleSelectFlight = (scheduledFlight: ScheduledFlight) => {
+    // 通过 flightNumber（callsign）找到对应的实时雷达飞机
+    const normalizedFlightNumber = normalizeCallsign(scheduledFlight.flightNumber);
+    if (normalizedFlightNumber) {
+      const matchingFlight = flights.find(f => normalizeCallsign(f.callsign) === normalizedFlightNumber);
       if (matchingFlight) {
         selectFlight(matchingFlight);
-      } else {
-        selectFlight(null);
+        return;
       }
     }
+    // 没有找到对应的雷达数据（飞机可能还未起飞或已降落）
+    selectFlight(null);
   };
 
   return (

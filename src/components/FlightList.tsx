@@ -1,7 +1,7 @@
 import { useRef, useEffect, useMemo, useState, useCallback } from 'react';
 import styled from 'styled-components';
-import type { FlightInfo, Flight } from '../types/flight';
-import type { RouteInfo } from '../context/FlightContext';
+import type { Flight } from '../types/flight';
+import type { RouteInfo, ScheduledFlight } from '../context/FlightContext';
 import { useLanguage } from '../context/LanguageContext';
 
 // 缩放范围配置
@@ -111,6 +111,12 @@ function isValidCallsign(callsign: string | null): boolean {
   return /^[A-Za-z0-9\s]+$/.test(callsign);
 }
 
+// 规范化callsign格式（去掉空格，转大写）- 用于匹配flightRoutes
+function normalizeCallsign(callsign: string | null | undefined): string | null {
+  if (!callsign) return null;
+  return callsign.trim().replace(/\s+/g, '').toUpperCase();
+}
+
 // 从callsign提取航空公司（多语言）
 function getAirline(callsign: string | null, lang: Language): string {
   if (!callsign || !isValidCallsign(callsign)) return '';
@@ -118,177 +124,17 @@ function getAirline(callsign: string | null, lang: Language): string {
   return AIRLINES[lang][code] || AIRLINES.en[code] || code;
 }
 
-// 机场ICAO代码到中文名称映射（福冈/成田/仁川三机场完整航线）
-const AIRPORTS_NAME: Record<string, string> = {
-  // 日本主要机场
-  'RJFF': '福冈', 'RJAA': '成田', 'RJTT': '羽田', 'RJBB': '关西', 'RJCC': '新千岁',
-  'RJGG': '中部', 'RJOO': '伊丹', 'RJNN': '名古屋', 'RJNA': '名古屋飞行场',
-  // 日本九州
-  'RJFK': '鹿儿岛', 'RJFU': '长崎', 'RJFT': '熊本', 'RJFE': '大分', 'RJFM': '宫崎',
-  'RJFS': '佐贺', 'RJFN': '新北九州', 'RJFO': '大分', 'RJDM': '大村',
-  // 日本冲绳/南西诸岛
-  'ROAH': '那霸', 'ROIG': '石垣', 'RORS': '下地岛', 'ROYN': '与那国', 'ROMY': '宫古',
-  // 日本中国/四国
-  'RJOH': '米子', 'RJOB': '冈山', 'RJOC': '出云', 'RJOI': '岩国', 'RJOM': '松山',
-  'RJOT': '高松', 'RJOS': '德岛', 'RJOK': '高知',
-  // 日本近畿/中部
-  'RJBE': '神户', 'RJNK': '小松', 'RJNT': '富山', 'RJNY': '松本',
-  // 日本关东/东北
-  'RJAH': '茨城', 'RJSN': '新潟', 'RJSS': '仙台', 'RJSK': '秋田', 'RJSF': '福岛',
-  'RJSH': '三�的', 'RJSR': '大馆能代', 'RJSY': '山形',
-  // 日本北海道
-  'RJCH': '函馆', 'RJCB': '带广', 'RJCK': '�的路', 'RJCM': '女满别', 'RJCN': '中标津',
-  'RJCO': '丘珠', 'RJCW': '稚内', 'RJEC': '旭川', 'RJEB': '�的别',
-  // 韩国
-  'RKSI': '仁川', 'RKSS': '金浦', 'RKPK': '金海', 'RKPC': '济州', 'RKTU': '清州',
-  'RKTN': '大邱', 'RKJJ': '光州', 'RKJK': '群山', 'RKJY': '丽水', 'RKPU': '蔚山',
-  'RKPS': '泗川', 'RKTH': '浦项', 'RKNY': '襄阳', 'RKPM': '务安',
-  // 中国北方
-  'ZBAA': '北京首都', 'ZBNY': '北京大兴', 'ZBTJ': '天津', 'ZBSJ': '石家庄',
-  'ZYTX': '沈阳', 'ZYTL': '大连', 'ZYCC': '长春', 'ZYHB': '哈尔滨', 'ZYQQ': '齐齐哈尔',
-  'ZSQD': '青岛', 'ZSYT': '烟台', 'ZSJN': '济南', 'ZSWD': '威海',
-  // 中国华东
-  'ZSPD': '上海浦东', 'ZSSS': '上海虹桥', 'ZSNJ': '南京', 'ZSHC': '杭州', 'ZSNB': '宁波',
-  'ZSWZ': '温州', 'ZSAM': '厦门', 'ZSFZ': '福州', 'ZSOF': '合肥', 'ZSCN': '南昌',
-  // 中国华南
-  'ZGGG': '广州', 'ZGSZ': '深圳', 'ZGHA': '长沙', 'ZGNN': '南宁', 'ZGKL': '桂林',
-  'ZGHC': '海口', 'ZJSY': '三亚', 'ZJHK': '海口美兰',
-  // 中国西南
-  'ZUUU': '成都双流', 'ZUTF': '成都天府', 'ZUCK': '重庆', 'ZPPP': '昆明', 'ZUGY': '贵阳',
-  // 中国西北/中部
-  'ZLXY': '西安', 'ZHCC': '郑州', 'ZWWW': '乌鲁木齐', 'ZLLL': '兰州', 'ZHWH': '武汉',
-  // 港澳台
-  'VHHH': '香港', 'VMMC': '澳门', 'RCTP': '台北桃园', 'RCSS': '台北松山',
-  'RCKH': '高雄', 'RCMQ': '台中', 'RCNN': '台南',
-  // 东南亚-泰国
-  'VTBS': '曼谷素万那普', 'VTBD': '曼谷廊曼', 'VTSP': '普吉', 'VTCC': '清迈', 'VTSS': '苏梅',
-  // 东南亚-越南
-  'VVNB': '河内', 'VVTS': '胡志明', 'VVDN': '岘港', 'VVCI': '芽庄', 'VVPQ': '富国岛',
-  // 东南亚-菲律宾
-  'RPLL': '马尼拉', 'RPVM': '宿务', 'RPVB': '薄荷', 'RPVK': '卡利博',
-  // 东南亚-印尼
-  'WIII': '雅加达', 'WIDD': '棉兰', 'WADD': '巴厘岛', 'WARR': '泗水', 'WALL': '巴厘巴板',
-  // 东南亚-马来西亚
-  'WMKK': '吉隆坡', 'WBKK': '亚庇', 'WBGG': '古晋', 'WMKP': '槟城', 'WMKL': '浮罗交怡',
-  // 东南亚-其他
-  'WSSS': '新加坡', 'VDPP': '金边', 'VDSR': '暹粒', 'VLVT': '万象', 'VYYY': '仰光',
-  // 南亚
-  'VABB': '孟买', 'VIDP': '德里', 'VOBL': '班加罗尔', 'VCBI': '科伦坡', 'VNKT': '加德满都',
-  // 中东
-  'OMDB': '迪拜', 'OMAA': '阿布扎比', 'OTHH': '多哈', 'OERK': '利雅得', 'OEJN': '吉达',
-  'LTFM': '伊斯坦布尔', 'LLBG': '特拉维夫',
-  // 欧洲
-  'EGLL': '伦敦希思罗', 'EGKK': '伦敦盖特威克', 'LFPG': '巴黎戴高乐', 'EDDF': '法兰克福',
-  'EHAM': '阿姆斯特丹', 'LEMD': '马德里', 'LIRF': '罗马', 'LSZH': '苏黎世',
-  'EBBR': '布鲁塞尔', 'EDDB': '柏林', 'EFHK': '赫尔辛基', 'EPWA': '华沙',
-  // 北美
-  'KJFK': '纽约JFK', 'KLAX': '洛杉矶', 'KSFO': '旧金山', 'KORD': '芝加哥',
-  'KDEN': '丹佛', 'KSEA': '西雅图', 'KBOS': '波士顿', 'KIAH': '休斯顿',
-  'PANC': '安克雷奇', 'PHNL': '檀香山', 'PGUM': '关岛', 'PGSN': '塞班',
-  'CYVR': '温哥华', 'CYYZ': '多伦多', 'CYUL': '蒙特利尔',
-  // 大洋洲
-  'YSSY': '悉尼', 'YMML': '墨尔本', 'YBBN': '布里斯班', 'YPPH': '珀斯', 'YSCB': '凯恩斯',
-  'NZAA': '奥克兰', 'NFFN': '楠迪', 'PTRO': '帕劳',
-  // 其他
-  'UUEE': '莫斯科', 'ZMUB': '乌兰巴托',
-};
-
-// 获取机场中文名称
-function getAirportName(icao: string | null): string {
-  if (!icao) return '';
-  return AIRPORTS_NAME[icao] || icao;
-}
-
-// ICAO前缀到国家的映射（多语言）
-const COUNTRY_BY_ICAO_PREFIX: Record<Language, Record<string, string>> = {
-  zh: {
-    'RJ': '日本', 'RO': '日本',  // 日本
-    'RK': '韩国',  // 韩国
-    'ZB': '中国', 'ZS': '中国', 'ZG': '中国', 'ZU': '中国', 'ZP': '中国', 'ZL': '中国', 'ZH': '中国', 'ZW': '中国', 'ZY': '中国', 'ZJ': '中国',  // 中国
-    'VH': '香港', 'VM': '澳门', 'RC': '台湾',  // 港澳台
-    'WS': '新加坡', 'VT': '泰国', 'VV': '越南', 'VD': '柬埔寨', 'VL': '老挝', 'VY': '缅甸',  // 东南亚
-    'WM': '马来西亚', 'WB': '马来西亚', 'WI': '印尼', 'WA': '印尼', 'RP': '菲律宾',  // 东南亚
-    'VA': '印度', 'VI': '印度', 'VO': '印度', 'VE': '印度', 'VC': '斯里兰卡', 'VN': '尼泊尔',  // 南亚
-    'OM': '阿联酋', 'OT': '卡塔尔', 'OE': '沙特', 'OB': '巴林', 'OK': '科威特', 'OO': '阿曼',  // 中东
-    'LT': '土耳其', 'LL': '以色列',  // 中东
-    'EG': '英国', 'LF': '法国', 'ED': '德国', 'EH': '荷兰', 'EB': '比利时', 'LS': '瑞士',  // 欧洲
-    'LE': '西班牙', 'LI': '意大利', 'EF': '芬兰', 'EP': '波兰', 'LO': '奥地利', 'LK': '捷克',  // 欧洲
-    'K': '美国', 'PA': '美国', 'PH': '美国', 'PG': '美国',  // 美国及领地
-    'CY': '加拿大',  // 加拿大
-    'YS': '澳大利亚', 'YM': '澳大利亚', 'YB': '澳大利亚', 'YP': '澳大利亚', 'YC': '澳大利亚',  // 澳大利亚
-    'NZ': '新西兰', 'NF': '斐济', 'PT': '帕劳',  // 大洋洲
-    'UU': '俄罗斯', 'ZM': '蒙古',  // 其他
-  },
-  ja: {
-    'RJ': '日本', 'RO': '日本',
-    'RK': '韓国',
-    'ZB': '中国', 'ZS': '中国', 'ZG': '中国', 'ZU': '中国', 'ZP': '中国', 'ZL': '中国', 'ZH': '中国', 'ZW': '中国', 'ZY': '中国', 'ZJ': '中国',
-    'VH': '香港', 'VM': 'マカオ', 'RC': '台湾',
-    'WS': 'シンガポール', 'VT': 'タイ', 'VV': 'ベトナム', 'VD': 'カンボジア', 'VL': 'ラオス', 'VY': 'ミャンマー',
-    'WM': 'マレーシア', 'WB': 'マレーシア', 'WI': 'インドネシア', 'WA': 'インドネシア', 'RP': 'フィリピン',
-    'VA': 'インド', 'VI': 'インド', 'VO': 'インド', 'VE': 'インド', 'VC': 'スリランカ', 'VN': 'ネパール',
-    'OM': 'UAE', 'OT': 'カタール', 'OE': 'サウジ', 'OB': 'バーレーン', 'OK': 'クウェート', 'OO': 'オマーン',
-    'LT': 'トルコ', 'LL': 'イスラエル',
-    'EG': '英国', 'LF': 'フランス', 'ED': 'ドイツ', 'EH': 'オランダ', 'EB': 'ベルギー', 'LS': 'スイス',
-    'LE': 'スペイン', 'LI': 'イタリア', 'EF': 'フィンランド', 'EP': 'ポーランド', 'LO': 'オーストリア', 'LK': 'チェコ',
-    'K': '米国', 'PA': '米国', 'PH': '米国', 'PG': '米国',
-    'CY': 'カナダ',
-    'YS': '豪州', 'YM': '豪州', 'YB': '豪州', 'YP': '豪州', 'YC': '豪州',
-    'NZ': 'NZ', 'NF': 'フィジー', 'PT': 'パラオ',
-    'UU': 'ロシア', 'ZM': 'モンゴル',
-  },
-  en: {
-    'RJ': 'Japan', 'RO': 'Japan',
-    'RK': 'Korea',
-    'ZB': 'China', 'ZS': 'China', 'ZG': 'China', 'ZU': 'China', 'ZP': 'China', 'ZL': 'China', 'ZH': 'China', 'ZW': 'China', 'ZY': 'China', 'ZJ': 'China',
-    'VH': 'HK', 'VM': 'Macau', 'RC': 'Taiwan',
-    'WS': 'Singapore', 'VT': 'Thailand', 'VV': 'Vietnam', 'VD': 'Cambodia', 'VL': 'Laos', 'VY': 'Myanmar',
-    'WM': 'Malaysia', 'WB': 'Malaysia', 'WI': 'Indonesia', 'WA': 'Indonesia', 'RP': 'Philippines',
-    'VA': 'India', 'VI': 'India', 'VO': 'India', 'VE': 'India', 'VC': 'Sri Lanka', 'VN': 'Nepal',
-    'OM': 'UAE', 'OT': 'Qatar', 'OE': 'Saudi', 'OB': 'Bahrain', 'OK': 'Kuwait', 'OO': 'Oman',
-    'LT': 'Turkey', 'LL': 'Israel',
-    'EG': 'UK', 'LF': 'France', 'ED': 'Germany', 'EH': 'Netherlands', 'EB': 'Belgium', 'LS': 'Switzerland',
-    'LE': 'Spain', 'LI': 'Italy', 'EF': 'Finland', 'EP': 'Poland', 'LO': 'Austria', 'LK': 'Czech',
-    'K': 'USA', 'PA': 'USA', 'PH': 'USA', 'PG': 'USA',
-    'CY': 'Canada',
-    'YS': 'Australia', 'YM': 'Australia', 'YB': 'Australia', 'YP': 'Australia', 'YC': 'Australia',
-    'NZ': 'NZ', 'NF': 'Fiji', 'PT': 'Palau',
-    'UU': 'Russia', 'ZM': 'Mongolia',
-  },
-};
-
-// 根据ICAO代码获取国家名称
-function getCountryByIcao(icao: string | null, lang: Language): string {
-  if (!icao || icao.length < 2) return '';
-
-  const countryMap = COUNTRY_BY_ICAO_PREFIX[lang];
-
-  // 先尝试匹配2字符前缀
-  const prefix2 = icao.substring(0, 2);
-  if (countryMap[prefix2]) {
-    return countryMap[prefix2];
-  }
-
-  // 再尝试匹配1字符前缀（美国K开头）
-  const prefix1 = icao.substring(0, 1);
-  if (countryMap[prefix1]) {
-    return countryMap[prefix1];
-  }
-
-  return '';
-}
-
 interface FlightListProps {
   title: string;
-  flights: FlightInfo[] | Flight[];
+  flights: ScheduledFlight[];  // 使用时刻表数据
   selectedFlight: Flight | null;
-  onSelect: (flight: Flight | FlightInfo) => void;
+  onSelect: (flight: ScheduledFlight) => void;
   type: 'arrival' | 'departure';
   currentAirportIcao: string;
   flightRoutes?: Map<string, RouteInfo>;
 }
 
-export function FlightList({ title, flights, selectedFlight, onSelect, type, currentAirportIcao, flightRoutes }: FlightListProps) {
+export function FlightList({ title, flights, selectedFlight, onSelect, type, currentAirportIcao: _currentAirportIcao, flightRoutes: _flightRoutes }: FlightListProps) {
   const listRef = useRef<HTMLDivElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const middleItemRef = useRef<HTMLDivElement>(null);
@@ -313,10 +159,6 @@ export function FlightList({ title, flights, selectedFlight, onSelect, type, cur
     }
   }, [handleWheel]);
 
-  const isFlightInfo = (flight: FlightInfo | Flight | null | undefined): flight is FlightInfo => {
-    return flight != null && typeof flight === 'object' && 'firstSeen' in flight;
-  };
-
   // 解析时间字符串 "HH:MM" 为分钟数（用于排序）
   const parseTimeToMinutes = (timeStr: string | null | undefined): number | null => {
     if (!timeStr) return null;
@@ -327,24 +169,20 @@ export function FlightList({ title, flights, selectedFlight, onSelect, type, cur
     return null;
   };
 
-  // Sort flights by scheduled time (chronological order) and limit to 10
+  // 按计划时间排序（时刻表数据已经包含时间）
   const sortedFlights = useMemo(() => {
     if (!flights || flights.length === 0) return [];
     return [...flights]
-      .filter(f => f != null)
-      // 过滤无效的callsign（排除@等特殊字符）
+      .filter(f => f != null && f.flightNumber)
+      // 过滤无效的flightNumber（排除@等特殊字符）
       .filter(f => {
-        const cs = f.callsign || f.icao24 || '';
-        return isValidCallsign(cs) || /^[A-Fa-f0-9]+$/.test(cs); // 允许有效callsign或hex ICAO24
+        const fn = f.flightNumber || '';
+        return isValidCallsign(fn);
       })
       .sort((a, b) => {
-        // 优先使用计划时间排序（从时刻表获取）
-        const aCallsign = a.callsign?.trim();
-        const bCallsign = b.callsign?.trim();
-        const aRoute = aCallsign ? flightRoutes?.get(aCallsign) : null;
-        const bRoute = bCallsign ? flightRoutes?.get(bCallsign) : null;
-        const aScheduledMinutes = parseTimeToMinutes(aRoute?.scheduledTime);
-        const bScheduledMinutes = parseTimeToMinutes(bRoute?.scheduledTime);
+        // 直接使用时刻表的计划时间排序
+        const aScheduledMinutes = parseTimeToMinutes(a.scheduledTime);
+        const bScheduledMinutes = parseTimeToMinutes(b.scheduledTime);
 
         // 如果两者都有计划时间，按计划时间升序排序（早的在前）
         if (aScheduledMinutes !== null && bScheduledMinutes !== null) {
@@ -355,16 +193,10 @@ export function FlightList({ title, flights, selectedFlight, onSelect, type, cur
         if (aScheduledMinutes !== null && bScheduledMinutes === null) return -1;
         if (aScheduledMinutes === null && bScheduledMinutes !== null) return 1;
 
-        // 都没有计划时间时，按原来的逻辑（最近联系时间）
-        const aTime = isFlightInfo(a)
-          ? (type === 'arrival' ? a.lastSeen : a.firstSeen)
-          : a.lastContact;
-        const bTime = isFlightInfo(b)
-          ? (type === 'arrival' ? b.lastSeen : b.firstSeen)
-          : b.lastContact;
-        return bTime - aTime; // Descending order (most recent first)
-      }).slice(0, 10); // 只显示最近10个航班
-  }, [flights, type, flightRoutes]);
+        // 都没有计划时间时，按航班号排序
+        return (a.flightNumber || '').localeCompare(b.flightNumber || '');
+      }).slice(0, 20); // 只显示最近20个航班
+  }, [flights]);
 
   // Auto-scroll to show the most recent flight (first item) in the middle of visible area
   useEffect(() => {
@@ -381,13 +213,46 @@ export function FlightList({ title, flights, selectedFlight, onSelect, type, cur
   // Mark the first item (most recent) as the one to scroll to
   const mostRecentIndex = 0;
 
+  // 找到"最近即将到达/出发"的航班索引（第一个计划时间 >= 当前时间的航班）
+  const nextFlightIndex = useMemo(() => {
+    const now = new Date();
+    // 转换为日本时间的分钟数
+    const japanOffset = 9 * 60; // UTC+9
+    const utcMinutes = now.getUTCHours() * 60 + now.getUTCMinutes();
+    const currentMinutes = (utcMinutes + japanOffset) % (24 * 60);
+
+    for (let i = 0; i < sortedFlights.length; i++) {
+      const flight = sortedFlights[i];
+      // 直接使用时刻表的计划时间
+      const scheduledMinutes = parseTimeToMinutes(flight.scheduledTime);
+
+      if (scheduledMinutes !== null && scheduledMinutes >= currentMinutes) {
+        return i;
+      }
+    }
+    return -1; // 没有找到（所有航班都已过去）
+  }, [sortedFlights]);
+
+  // 飞机图标 SVG（用于图例）
+  const planeIconSvg = (color: string, size: number = 16) => (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill={color} style={{ verticalAlign: 'middle' }}>
+      <path d="M21,16v-2l-8-5V3.5C13,2.67,12.33,2,11.5,2S10,2.67,10,3.5V9l-8,5v2l8-2.5V19l-2,1.5V22l3.5-1l3.5,1v-1.5L13,19v-5.5L21,16z"/>
+    </svg>
+  );
+
   return (
     <Container ref={containerRef}>
       <Header>
-        <Title>{title}</Title>
+        <TitleRow>
+          <Title>{title}</Title>
+          <IconLegend>
+            {planeIconSvg(type === 'arrival' ? '#00BCD4' : '#FF9800', 14)}
+            <LegendArrow $type={type}>{type === 'arrival' ? '▼' : '▲'}</LegendArrow>
+          </IconLegend>
+        </TitleRow>
         <HeaderRight>
           {scale !== 1 && <ScaleIndicator>{Math.round(scale * 100)}%</ScaleIndicator>}
-          <Count>{sortedFlights.length}{flights.length > 10 ? ` / ${flights.length}` : ''}</Count>
+          <Count>{sortedFlights.length}{flights.length > 20 ? ` / ${flights.length}` : ''}</Count>
         </HeaderRight>
       </Header>
       <List ref={listRef} $scale={scale}>
@@ -395,110 +260,58 @@ export function FlightList({ title, flights, selectedFlight, onSelect, type, cur
           <EmptyState>{type === 'arrival' ? t.noArrivals : t.noDepartures}</EmptyState>
         ) : (
           sortedFlights.map((flight, index) => {
-            const isSelected = isFlightInfo(flight)
-              ? selectedFlight?.icao24 === flight.icao24
-              : selectedFlight?.icao24 === flight.icao24;
+            // 使用 flightNumber 作为标识匹配选中的飞机（通过 callsign 匹配雷达数据）
+            const normalizedFlightNumber = normalizeCallsign(flight.flightNumber);
+            const isSelected = normalizedFlightNumber && selectedFlight?.callsign
+              ? normalizeCallsign(selectedFlight.callsign) === normalizedFlightNumber
+              : false;
             const isMostRecent = index === mostRecentIndex;
+            const isNextFlight = index === nextFlightIndex;
 
             return (
               <ListItem
-                key={isFlightInfo(flight) ? `${flight.icao24}-${index}` : flight.icao24}
+                key={`${flight.flightNumber}-${index}`}
                 ref={isMostRecent ? middleItemRef : null}
                 selected={isSelected}
+                $isNextFlight={isNextFlight}
+                $type={type}
                 onClick={() => onSelect(flight)}
               >
                 <FlightHeader>
                   <FlightInfoWrapper>
-                    <Callsign>{flight.callsign || flight.icao24?.toUpperCase() || '-'}</Callsign>
+                    <Callsign>{flight.flightNumber || '-'}</Callsign>
                     {(() => {
-                      // 支持多机场ICAO代码（如东京 RJTT/RJAA）
-                      const airportIcaos = currentAirportIcao.split('/');
-                      const isCurrentAirport = (icao: string | null) => icao ? airportIcaos.includes(icao) : false;
-
-                      // 获取机场和国家信息的辅助函数
-                      const formatAirportWithCountry = (icao: string) => {
-                        const airport = getAirportName(icao);
-                        const country = getCountryByIcao(icao, lang);
-                        if (country && country !== airport) {
-                          return `${airport} ${country}`;
-                        }
-                        return airport;
-                      };
-
-                      // 优先使用 OpenSky 的航线数据
-                      if (isFlightInfo(flight)) {
-                        if (type === 'arrival' && flight.estDepartureAirport && !isCurrentAirport(flight.estDepartureAirport)) {
-                          const display = formatAirportWithCountry(flight.estDepartureAirport);
-                          return <Route>（{display}）</Route>;
-                        }
-                        if (type === 'departure' && flight.estArrivalAirport && !isCurrentAirport(flight.estArrivalAirport)) {
-                          const display = formatAirportWithCountry(flight.estArrivalAirport);
-                          return <Route>（{display}）</Route>;
-                        }
+                      // 显示出发地（到达航班）或目的地（出发航班）
+                      if (type === 'arrival' && flight.origin) {
+                        // 到达航班显示出发地
+                        const display = flight.origin.name || flight.origin.iata || '';
+                        return display ? <Route>（{display}）</Route> : null;
                       }
-                      // 使用 HexDB.io 的航线数据
-                      const callsign = flight.callsign?.trim();
-                      const route = callsign ? flightRoutes?.get(callsign) : null;
-                      if (route) {
-                        if (type === 'arrival' && route.origin && !isCurrentAirport(route.origin)) {
-                          const display = formatAirportWithCountry(route.origin);
-                          return <Route>（{display}）</Route>;
-                        }
-                        if (type === 'departure' && route.destination && !isCurrentAirport(route.destination)) {
-                          const display = formatAirportWithCountry(route.destination);
-                          return <Route>（{display}）</Route>;
-                        }
+                      if (type === 'departure' && flight.destination) {
+                        // 出发航班显示目的地
+                        const display = flight.destination.name || flight.destination.iata || '';
+                        return display ? <Route>（{display}）</Route> : null;
                       }
                       return null;
                     })()}
-                    {getAirline(flight.callsign, lang) && (
-                      <Airline>{getAirline(flight.callsign, lang)}</Airline>
+                    {getAirline(flight.flightNumber, lang) && (
+                      <Airline>{getAirline(flight.flightNumber, lang)}</Airline>
                     )}
                   </FlightInfoWrapper>
-                  {(() => {
-                    // 显示计划时间（优先）或最后联系时间（备用）
-                    const callsign = flight.callsign?.trim();
-                    const route = callsign ? flightRoutes?.get(callsign) : null;
-                    if (route?.scheduledTime) {
-                      // 有时刻表数据，显示计划时间
-                      return (
-                        <Time $hasSchedule={true}>
-                          {route.scheduledTime}
-                          {route.status && <Status $status={route.status}>{route.status}</Status>}
-                        </Time>
-                      );
-                    }
-                    // 没有时刻表数据，显示最后联系时间
-                    const lastContact = isFlightInfo(flight)
-                      ? (type === 'arrival' ? flight.lastSeen : flight.firstSeen)
-                      : flight.lastContact;
-                    if (lastContact) {
-                      const date = new Date(lastContact * 1000);
-                      // 转换为日本时间 (UTC+9)
-                      const japanTime = new Date(date.getTime() + 9 * 60 * 60 * 1000);
-                      const hours = japanTime.getUTCHours().toString().padStart(2, '0');
-                      const minutes = japanTime.getUTCMinutes().toString().padStart(2, '0');
-                      return (
-                        <Time $hasSchedule={false}>
-                          {hours}:{minutes}
-                        </Time>
-                      );
-                    }
-                    return null;
-                  })()}
+                  {/* 显示计划时间和状态 */}
+                  {flight.scheduledTime && (
+                    <Time $hasSchedule={true}>
+                      {flight.scheduledTime}
+                      {flight.status && <Status $status={flight.status}>{flight.status}</Status>}
+                    </Time>
+                  )}
                 </FlightHeader>
 
-                {!isFlightInfo(flight) && (
+                {/* 显示登机口和航站楼信息 */}
+                {(flight.gate || flight.terminal) && (
                   <Details>
-                    <DetailItem>
-                      {flight.altitude ? `${Math.round(flight.altitude)}${t.meter}` : t.ground}
-                    </DetailItem>
-                    <DetailItem>
-                      {flight.velocity ? `${Math.round(flight.velocity * 3.6)}${t.kmPerHour}` : '-'}
-                    </DetailItem>
-                    {flight.originCountry && (
-                      <DetailItem>{flight.originCountry}</DetailItem>
-                    )}
+                    {flight.terminal && <DetailItem>T{flight.terminal}</DetailItem>}
+                    {flight.gate && <DetailItem>Gate {flight.gate}</DetailItem>}
                   </Details>
                 )}
               </ListItem>
@@ -538,6 +351,12 @@ const ScaleIndicator = styled.span`
   font-family: 'Consolas', 'Monaco', monospace;
 `;
 
+const TitleRow = styled.div`
+  display: flex;
+  align-items: center;
+  gap: 8px;
+`;
+
 const Title = styled.h2`
   margin: 0;
   font-size: 14px;
@@ -547,6 +366,23 @@ const Title = styled.h2`
   text-transform: uppercase;
   letter-spacing: 2px;
   text-shadow: 0 0 10px rgba(0, 255, 255, 0.3);
+`;
+
+const IconLegend = styled.div`
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding: 2px 6px;
+  background: rgba(255, 255, 255, 0.05);
+  border-radius: 4px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+`;
+
+const LegendArrow = styled.span<{ $type: 'arrival' | 'departure' }>`
+  font-size: 10px;
+  color: ${props => props.$type === 'arrival' ? '#00BCD4' : '#FF9800'};
+  font-weight: bold;
+  line-height: 1;
 `;
 
 const Count = styled.span`
@@ -593,15 +429,49 @@ const EmptyState = styled.div`
   font-family: 'Consolas', 'Monaco', monospace;
 `;
 
-const ListItem = styled.div<{ selected: boolean }>`
+const ListItem = styled.div<{ selected: boolean; $isNextFlight?: boolean; $type?: 'arrival' | 'departure' }>`
   padding: 0.625em 0.875em;  /* 10px 14px -> em for scaling */
   cursor: pointer;
-  background: ${(props) => (props.selected
-    ? 'linear-gradient(90deg, rgba(0, 255, 0, 0.15) 0%, rgba(0, 255, 0, 0.05) 100%)'
-    : 'transparent')};
+  position: relative;
+  background: ${(props) => {
+    if (props.selected) {
+      return 'linear-gradient(90deg, rgba(0, 255, 0, 0.15) 0%, rgba(0, 255, 0, 0.05) 100%)';
+    }
+    if (props.$isNextFlight) {
+      // 最近即将到达/出发的航班 - 特殊高亮背景（加深颜色）
+      const color = props.$type === 'arrival' ? '0, 188, 212' : '255, 152, 0'; // cyan / orange
+      return `linear-gradient(90deg, rgba(${color}, 0.35) 0%, rgba(${color}, 0.15) 100%)`;
+    }
+    return 'transparent';
+  }};
   border-bottom: 1px solid rgba(0, 255, 255, 0.08);
-  border-left: 2px solid ${(props) => (props.selected ? '#00ff00' : 'transparent')};
+  border-left: 3px solid ${(props) => {
+    if (props.selected) return '#00ff00';
+    if (props.$isNextFlight) {
+      return props.$type === 'arrival' ? '#00BCD4' : '#FF9800';
+    }
+    return 'transparent';
+  }};
   transition: all 0.2s ease;
+
+  /* 最近即将到达/出发的航班 - 添加脉冲动画边框 */
+  ${(props) => props.$isNextFlight && `
+    &::before {
+      content: '';
+      position: absolute;
+      left: 0;
+      top: 0;
+      bottom: 0;
+      width: 3px;
+      background: ${props.$type === 'arrival' ? '#00BCD4' : '#FF9800'};
+      animation: pulse 2s ease-in-out infinite;
+    }
+
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.4; }
+    }
+  `}
 
   &:hover {
     background: rgba(0, 255, 255, 0.05);

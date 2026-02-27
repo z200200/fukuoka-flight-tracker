@@ -29,7 +29,7 @@ app.use(express.json());
 // ========== 请求速率限制（简易实现）==========
 const rateLimitStore = new Map(); // IP -> { count, resetTime }
 const RATE_LIMIT_WINDOW = 60 * 1000; // 1分钟
-const RATE_LIMIT_MAX = 120; // 每分钟最多120次请求
+const RATE_LIMIT_MAX = 300; // 每分钟最多300次请求（提高限制，adsb.lol 无速率限制）
 
 function rateLimit(req, res, next) {
   const ip = req.ip || req.connection.remoteAddress || 'unknown';

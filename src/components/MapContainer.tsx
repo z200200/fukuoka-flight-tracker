@@ -94,11 +94,56 @@ function MapEventsHandler({
   return null;
 }
 
+// 航班类型枚举
+type FlightType = 'arrival' | 'departure' | 'other';
+
+// 规范化callsign格式（去掉空格，转大写）- 用于匹配flightRoutes
+function normalizeCallsign(callsign: string | null | undefined): string | null {
+  if (!callsign) return null;
+  return callsign.trim().replace(/\s+/g, '').toUpperCase();
+}
+
 // Create a custom plane icon with glow effect
-const createPlaneIcon = (heading: number | null, isSelected: boolean) => {
+// 参数: heading=航向, isSelected=是否选中, flightType=航班类型, isInDisplayList=是否在显示列表中
+const createPlaneIcon = (
+  heading: number | null,
+  isSelected: boolean,
+  flightType: FlightType = 'other',
+  isInDisplayList: boolean = true
+) => {
   const rotation = heading !== null ? heading : 0;
-  const mainColor = isSelected ? '#FF6B6B' : '#333333';
+
+  // 颜色配置
+  // - 选中: 珊瑚红
+  // - 到达: 青色
+  // - 出发: 橙色
+  // - 非列表: 浅灰色
+  // - 其他: 深灰色
+  let mainColor: string;
+  let glowColor: string;
+  let arrowIndicator: string = '';
+
+  if (isSelected) {
+    mainColor = '#FF6B6B';
+    glowColor = 'rgba(255, 107, 107, 0.6)';
+  } else if (!isInDisplayList) {
+    mainColor = '#AAAAAA'; // 浅灰色 - 非列表航班
+    glowColor = '';
+  } else if (flightType === 'arrival') {
+    mainColor = '#00BCD4'; // 青色 - 到达
+    glowColor = 'rgba(0, 188, 212, 0.4)';
+    arrowIndicator = '▼';
+  } else if (flightType === 'departure') {
+    mainColor = '#FF9800'; // 橙色 - 出发
+    glowColor = 'rgba(255, 152, 0, 0.4)';
+    arrowIndicator = '▲';
+  } else {
+    mainColor = '#666666';
+    glowColor = '';
+  }
+
   const iconSize = isSelected ? 44 : 32;
+  const indicatorSize = 10;
 
   if (isSelected) {
     // 选中状态：柔和的珊瑚红 + 轻微发光
@@ -112,7 +157,7 @@ const createPlaneIcon = (heading: number | null, isSelected: boolean) => {
           display: flex;
           align-items: center;
           justify-content: center;
-          filter: drop-shadow(0 0 6px rgba(255, 107, 107, 0.6)) drop-shadow(0 0 12px rgba(255, 107, 107, 0.4));
+          filter: drop-shadow(0 0 6px ${glowColor}) drop-shadow(0 0 12px rgba(255, 107, 107, 0.4));
         ">
           <svg width="${iconSize}" height="${iconSize}" viewBox="0 0 24 24" fill="${mainColor}"
                stroke="#FFFFFF" stroke-width="0.5">
@@ -125,7 +170,26 @@ const createPlaneIcon = (heading: number | null, isSelected: boolean) => {
     });
   }
 
-  // 普通状态：深灰色
+  // 非选中状态
+  const filterStyle = glowColor
+    ? `filter: drop-shadow(0 0 4px ${glowColor}) drop-shadow(0 1px 2px rgba(0,0,0,0.3));`
+    : 'filter: drop-shadow(0 1px 2px rgba(0,0,0,0.3));';
+
+  // 如果有方向指示器（到达/出发），添加小箭头
+  const indicatorHtml = arrowIndicator && isInDisplayList ? `
+    <div style="
+      position: absolute;
+      bottom: -2px;
+      left: 50%;
+      transform: translateX(-50%) rotate(-${rotation}deg);
+      font-size: ${indicatorSize}px;
+      color: ${mainColor};
+      font-weight: bold;
+      text-shadow: 0 0 3px rgba(0,0,0,0.5);
+      line-height: 1;
+    ">${arrowIndicator}</div>
+  ` : '';
+
   return L.divIcon({
     className: 'custom-plane-icon',
     html: `
@@ -136,11 +200,13 @@ const createPlaneIcon = (heading: number | null, isSelected: boolean) => {
         display: flex;
         align-items: center;
         justify-content: center;
+        position: relative;
       ">
         <svg width="${iconSize}" height="${iconSize}" viewBox="0 0 24 24" fill="${mainColor}"
-             style="filter: drop-shadow(0 1px 2px rgba(0,0,0,0.3));">
+             style="${filterStyle}">
           <path d="M21,16v-2l-8-5V3.5C13,2.67,12.33,2,11.5,2S10,2.67,10,3.5V9l-8,5v2l8-2.5V19l-2,1.5V22l3.5-1l3.5,1v-1.5L13,19v-5.5L21,16z"/>
         </svg>
+        ${indicatorHtml}
       </div>
     `,
     iconSize: [iconSize, iconSize],
@@ -149,13 +215,14 @@ const createPlaneIcon = (heading: number | null, isSelected: boolean) => {
 };
 
 export function MapContainer() {
-  const { flights, selectedFlight, currentAirport, flightTracks, flightRoutes, fetchFlightsInBounds } = useFlightContext();
+  const { flights, selectedFlight, currentAirport, flightTracks, flightRoutes, arrivals, departures, scheduledCallsigns } = useFlightContext();
   const { t } = useLanguage();
 
-  // Handle map bounds change - fetch flights in new area
-  const handleBoundsChange = useCallback((bounds: { lamin: number; lamax: number; lomin: number; lomax: number }) => {
-    fetchFlightsInBounds(bounds);
-  }, [fetchFlightsInBounds]);
+  // Handle map bounds change - just log for debugging, no API calls
+  const handleBoundsChange = useCallback((_bounds: { lamin: number; lamax: number; lomin: number; lomax: number }) => {
+    // 不再触发任何 API 调用，只用于调试
+    // console.log('[MapContainer] Bounds changed:', bounds);
+  }, []);
 
   // Helper: calculate distance between two points (in km)
   const getDistance = (lat1: number, lon1: number, lat2: number, lon2: number): number => {
@@ -205,10 +272,10 @@ export function MapContainer() {
     airborneFlights.forEach((flight) => {
       const trackData = flightTracks.get(flight.icao24);
       if (trackData && trackData.length > 1) {
-        // Use real track data
+        // Use real track data - 只保留最近40个点，避免轨迹过长
         const positions = trackData.map(
           (wp) => [wp.latitude, wp.longitude] as [number, number]
-        );
+        ).slice(-40);
         tracks.push({
           icao24: flight.icao24,
           positions,
@@ -243,11 +310,84 @@ export function MapContainer() {
     return tracks;
   }, [airborneFlights, flightTracks, currentAirport]);
 
+  // 解析时间字符串 "HH:MM" 为分钟数（与 FlightList 保持一致）
+  const parseTimeToMinutes = (timeStr: string | null | undefined): number | null => {
+    if (!timeStr) return null;
+    const match = timeStr.match(/^(\d{2}):(\d{2})$/);
+    if (match) {
+      return parseInt(match[1], 10) * 60 + parseInt(match[2], 10);
+    }
+    return null;
+  };
+
+  // 计算在显示列表中的航班 callsign 集合（ScheduledFlight 使用 flightNumber）
+  const displayedArrivalCallsigns = useMemo(() => {
+    // 按计划时间排序（与 FlightList 一致）
+    const sorted = [...arrivals].sort((a, b) => {
+      const aMinutes = parseTimeToMinutes(a.scheduledTime);
+      const bMinutes = parseTimeToMinutes(b.scheduledTime);
+
+      if (aMinutes !== null && bMinutes !== null) return aMinutes - bMinutes;
+      if (aMinutes !== null) return -1;
+      if (bMinutes !== null) return 1;
+      return 0;
+    });
+    // 返回规范化后的 flightNumber 集合
+    const callsigns = new Set<string>();
+    sorted.slice(0, 20).forEach(f => {
+      const normalized = normalizeCallsign(f.flightNumber);
+      if (normalized) callsigns.add(normalized);
+    });
+    return callsigns;
+  }, [arrivals]);
+
+  const displayedDepartureCallsigns = useMemo(() => {
+    // 按计划时间排序（与 FlightList 一致）
+    const sorted = [...departures].sort((a, b) => {
+      const aMinutes = parseTimeToMinutes(a.scheduledTime);
+      const bMinutes = parseTimeToMinutes(b.scheduledTime);
+
+      if (aMinutes !== null && bMinutes !== null) return aMinutes - bMinutes;
+      if (aMinutes !== null) return -1;
+      if (bMinutes !== null) return 1;
+      return 0;
+    });
+    // 返回规范化后的 flightNumber 集合
+    const callsigns = new Set<string>();
+    sorted.slice(0, 20).forEach(f => {
+      const normalized = normalizeCallsign(f.flightNumber);
+      if (normalized) callsigns.add(normalized);
+    });
+    return callsigns;
+  }, [departures]);
+
   const markers = useMemo(
     () =>
       airborneFlights.map((flight) => {
         const isSelected = selectedFlight?.icao24 === flight.icao24;
-        const planeIcon = createPlaneIcon(flight.heading, isSelected);
+        const normalizedCallsign = normalizeCallsign(flight.callsign);
+
+        // 判断航班类型 - 使用 callsign 与时刻表的 flightNumber 匹配
+        let flightType: FlightType = 'other';
+        let inDisplayList = false;
+
+        if (normalizedCallsign) {
+          // 检查是否在计划航班中
+          if (displayedArrivalCallsigns.has(normalizedCallsign)) {
+            flightType = 'arrival';
+            inDisplayList = true;
+          } else if (displayedDepartureCallsigns.has(normalizedCallsign)) {
+            flightType = 'departure';
+            inDisplayList = true;
+          } else if (scheduledCallsigns.has(normalizedCallsign)) {
+            // 在计划列表中但不在显示的前20个
+            // 检查是到达还是出发
+            const isArrival = arrivals.some(f => normalizeCallsign(f.flightNumber) === normalizedCallsign);
+            flightType = isArrival ? 'arrival' : 'departure';
+          }
+        }
+
+        const planeIcon = createPlaneIcon(flight.heading, isSelected, flightType, inDisplayList);
 
         // 选中的飞机不显示弹窗（已有绿色高亮效果）
         if (isSelected) {
@@ -266,14 +406,14 @@ export function MapContainer() {
             key={flight.icao24}
             position={[flight.latitude, flight.longitude]}
             icon={planeIcon}
-            zIndexOffset={0}
+            zIndexOffset={inDisplayList ? 100 : 0}
           >
             <Popup>
               <PopupContent>
                 <PopupTitle>
                   {flight.callsign || flight.icao24?.toUpperCase() || 'Unknown'}
-                  {flight.callsign && flightRoutes.get(flight.callsign)?.route && (
-                    <RouteInfo>({flightRoutes.get(flight.callsign)?.origin}→{flightRoutes.get(flight.callsign)?.destination})</RouteInfo>
+                  {flight.callsign && flightRoutes.get(normalizeCallsign(flight.callsign)!)?.route && (
+                    <RouteInfo>({flightRoutes.get(normalizeCallsign(flight.callsign)!)?.origin}→{flightRoutes.get(normalizeCallsign(flight.callsign)!)?.destination})</RouteInfo>
                   )}
                 </PopupTitle>
                 <PopupInfo>
@@ -307,7 +447,7 @@ export function MapContainer() {
           </Marker>
         );
       }),
-    [airborneFlights, selectedFlight, flightRoutes, t]
+    [airborneFlights, selectedFlight, flightRoutes, t, arrivals, departures, displayedArrivalCallsigns, displayedDepartureCallsigns, scheduledCallsigns]
   );
 
   return (
@@ -449,8 +589,8 @@ export function MapContainer() {
         <SelectedFlightPanel>
           <PanelTitle>
             {selectedFlight.callsign || selectedFlight.icao24?.toUpperCase() || 'Unknown'}
-            {selectedFlight.callsign && flightRoutes.get(selectedFlight.callsign)?.route && (
-              <RouteInfo>({flightRoutes.get(selectedFlight.callsign)?.origin}→{flightRoutes.get(selectedFlight.callsign)?.destination})</RouteInfo>
+            {selectedFlight.callsign && flightRoutes.get(normalizeCallsign(selectedFlight.callsign)!)?.route && (
+              <RouteInfo>({flightRoutes.get(normalizeCallsign(selectedFlight.callsign)!)?.origin}→{flightRoutes.get(normalizeCallsign(selectedFlight.callsign)!)?.destination})</RouteInfo>
             )}
           </PanelTitle>
           <PanelContent>

@@ -155,10 +155,15 @@ export function DashboardLayout() {
                   <CountdownBar style={{ width: `${(nextUpdateSeconds / 3) * 100}%` }} />
                 </CountdownBarWrapper>
               </CountdownItem>
-              <CountdownItemClickable onClick={manualRescan} title="Click to rescan now">
-                <CountdownLabel>{t.rescan} ({Math.floor(nextRescanSeconds / 60)}:{(nextRescanSeconds % 60).toString().padStart(2, '0')})</CountdownLabel>
+              <CountdownItemClickable onClick={manualRescan} title="Click to manually refresh flight list">
+                <CountdownLabel>
+                  {nextRescanSeconds < 0
+                    ? (lang === 'zh' ? '点击刷新列表' : lang === 'ja' ? 'リスト更新' : 'Refresh List')
+                    : `${t.rescan} (${Math.floor(nextRescanSeconds / 60)}:${(nextRescanSeconds % 60).toString().padStart(2, '0')})`
+                  }
+                </CountdownLabel>
                 <CountdownBarWrapper>
-                  <CountdownBar style={{ width: `${(nextRescanSeconds / 120) * 100}%` }} />
+                  <CountdownBar style={{ width: nextRescanSeconds < 0 ? '100%' : `${(nextRescanSeconds / 120) * 100}%` }} />
                 </CountdownBarWrapper>
               </CountdownItemClickable>
             </CountdownGroup>
