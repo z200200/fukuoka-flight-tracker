@@ -114,13 +114,13 @@ export function DashboardLayout() {
           <HeaderInfo>
             <CountdownGroup>
               <CountdownItem>
-                <CountdownLabel>轨迹更新</CountdownLabel>
+                <CountdownLabel>轨迹更新 ({nextUpdateSeconds}s)</CountdownLabel>
                 <CountdownBarWrapper>
                   <CountdownBar style={{ width: `${(nextUpdateSeconds / 3) * 100}%` }} />
                 </CountdownBarWrapper>
               </CountdownItem>
               <CountdownItem>
-                <CountdownLabel>重新扫描</CountdownLabel>
+                <CountdownLabel>重新扫描 ({Math.floor(nextRescanSeconds / 60)}:{(nextRescanSeconds % 60).toString().padStart(2, '0')})</CountdownLabel>
                 <CountdownBarWrapper>
                   <CountdownBar style={{ width: `${(nextRescanSeconds / 120) * 100}%` }} />
                 </CountdownBarWrapper>
