@@ -1,8 +1,13 @@
-import { useRef, useEffect, useMemo } from 'react';
+import { useRef, useEffect, useMemo, useState, useCallback } from 'react';
 import styled from 'styled-components';
 import type { FlightInfo, Flight } from '../types/flight';
 import type { RouteInfo } from '../context/FlightContext';
 import { useLanguage } from '../context/LanguageContext';
+
+// 缩放范围配置
+const MIN_SCALE = 0.8;
+const MAX_SCALE = 2.0;
+const SCALE_STEP = 0.1;
 
 // 航空公司代码多语言映射
 type Language = 'zh' | 'ja' | 'en';
@@ -194,6 +199,85 @@ function getAirportName(icao: string | null): string {
   return AIRPORTS_NAME[icao] || icao;
 }
 
+// ICAO前缀到国家的映射（多语言）
+const COUNTRY_BY_ICAO_PREFIX: Record<Language, Record<string, string>> = {
+  zh: {
+    'RJ': '日本', 'RO': '日本',  // 日本
+    'RK': '韩国',  // 韩国
+    'ZB': '中国', 'ZS': '中国', 'ZG': '中国', 'ZU': '中国', 'ZP': '中国', 'ZL': '中国', 'ZH': '中国', 'ZW': '中国', 'ZY': '中国', 'ZJ': '中国',  // 中国
+    'VH': '香港', 'VM': '澳门', 'RC': '台湾',  // 港澳台
+    'WS': '新加坡', 'VT': '泰国', 'VV': '越南', 'VD': '柬埔寨', 'VL': '老挝', 'VY': '缅甸',  // 东南亚
+    'WM': '马来西亚', 'WB': '马来西亚', 'WI': '印尼', 'WA': '印尼', 'RP': '菲律宾',  // 东南亚
+    'VA': '印度', 'VI': '印度', 'VO': '印度', 'VE': '印度', 'VC': '斯里兰卡', 'VN': '尼泊尔',  // 南亚
+    'OM': '阿联酋', 'OT': '卡塔尔', 'OE': '沙特', 'OB': '巴林', 'OK': '科威特', 'OO': '阿曼',  // 中东
+    'LT': '土耳其', 'LL': '以色列',  // 中东
+    'EG': '英国', 'LF': '法国', 'ED': '德国', 'EH': '荷兰', 'EB': '比利时', 'LS': '瑞士',  // 欧洲
+    'LE': '西班牙', 'LI': '意大利', 'EF': '芬兰', 'EP': '波兰', 'LO': '奥地利', 'LK': '捷克',  // 欧洲
+    'K': '美国', 'PA': '美国', 'PH': '美国', 'PG': '美国',  // 美国及领地
+    'CY': '加拿大',  // 加拿大
+    'YS': '澳大利亚', 'YM': '澳大利亚', 'YB': '澳大利亚', 'YP': '澳大利亚', 'YC': '澳大利亚',  // 澳大利亚
+    'NZ': '新西兰', 'NF': '斐济', 'PT': '帕劳',  // 大洋洲
+    'UU': '俄罗斯', 'ZM': '蒙古',  // 其他
+  },
+  ja: {
+    'RJ': '日本', 'RO': '日本',
+    'RK': '韓国',
+    'ZB': '中国', 'ZS': '中国', 'ZG': '中国', 'ZU': '中国', 'ZP': '中国', 'ZL': '中国', 'ZH': '中国', 'ZW': '中国', 'ZY': '中国', 'ZJ': '中国',
+    'VH': '香港', 'VM': 'マカオ', 'RC': '台湾',
+    'WS': 'シンガポール', 'VT': 'タイ', 'VV': 'ベトナム', 'VD': 'カンボジア', 'VL': 'ラオス', 'VY': 'ミャンマー',
+    'WM': 'マレーシア', 'WB': 'マレーシア', 'WI': 'インドネシア', 'WA': 'インドネシア', 'RP': 'フィリピン',
+    'VA': 'インド', 'VI': 'インド', 'VO': 'インド', 'VE': 'インド', 'VC': 'スリランカ', 'VN': 'ネパール',
+    'OM': 'UAE', 'OT': 'カタール', 'OE': 'サウジ', 'OB': 'バーレーン', 'OK': 'クウェート', 'OO': 'オマーン',
+    'LT': 'トルコ', 'LL': 'イスラエル',
+    'EG': '英国', 'LF': 'フランス', 'ED': 'ドイツ', 'EH': 'オランダ', 'EB': 'ベルギー', 'LS': 'スイス',
+    'LE': 'スペイン', 'LI': 'イタリア', 'EF': 'フィンランド', 'EP': 'ポーランド', 'LO': 'オーストリア', 'LK': 'チェコ',
+    'K': '米国', 'PA': '米国', 'PH': '米国', 'PG': '米国',
+    'CY': 'カナダ',
+    'YS': '豪州', 'YM': '豪州', 'YB': '豪州', 'YP': '豪州', 'YC': '豪州',
+    'NZ': 'NZ', 'NF': 'フィジー', 'PT': 'パラオ',
+    'UU': 'ロシア', 'ZM': 'モンゴル',
+  },
+  en: {
+    'RJ': 'Japan', 'RO': 'Japan',
+    'RK': 'Korea',
+    'ZB': 'China', 'ZS': 'China', 'ZG': 'China', 'ZU': 'China', 'ZP': 'China', 'ZL': 'China', 'ZH': 'China', 'ZW': 'China', 'ZY': 'China', 'ZJ': 'China',
+    'VH': 'HK', 'VM': 'Macau', 'RC': 'Taiwan',
+    'WS': 'Singapore', 'VT': 'Thailand', 'VV': 'Vietnam', 'VD': 'Cambodia', 'VL': 'Laos', 'VY': 'Myanmar',
+    'WM': 'Malaysia', 'WB': 'Malaysia', 'WI': 'Indonesia', 'WA': 'Indonesia', 'RP': 'Philippines',
+    'VA': 'India', 'VI': 'India', 'VO': 'India', 'VE': 'India', 'VC': 'Sri Lanka', 'VN': 'Nepal',
+    'OM': 'UAE', 'OT': 'Qatar', 'OE': 'Saudi', 'OB': 'Bahrain', 'OK': 'Kuwait', 'OO': 'Oman',
+    'LT': 'Turkey', 'LL': 'Israel',
+    'EG': 'UK', 'LF': 'France', 'ED': 'Germany', 'EH': 'Netherlands', 'EB': 'Belgium', 'LS': 'Switzerland',
+    'LE': 'Spain', 'LI': 'Italy', 'EF': 'Finland', 'EP': 'Poland', 'LO': 'Austria', 'LK': 'Czech',
+    'K': 'USA', 'PA': 'USA', 'PH': 'USA', 'PG': 'USA',
+    'CY': 'Canada',
+    'YS': 'Australia', 'YM': 'Australia', 'YB': 'Australia', 'YP': 'Australia', 'YC': 'Australia',
+    'NZ': 'NZ', 'NF': 'Fiji', 'PT': 'Palau',
+    'UU': 'Russia', 'ZM': 'Mongolia',
+  },
+};
+
+// 根据ICAO代码获取国家名称
+function getCountryByIcao(icao: string | null, lang: Language): string {
+  if (!icao || icao.length < 2) return '';
+
+  const countryMap = COUNTRY_BY_ICAO_PREFIX[lang];
+
+  // 先尝试匹配2字符前缀
+  const prefix2 = icao.substring(0, 2);
+  if (countryMap[prefix2]) {
+    return countryMap[prefix2];
+  }
+
+  // 再尝试匹配1字符前缀（美国K开头）
+  const prefix1 = icao.substring(0, 1);
+  if (countryMap[prefix1]) {
+    return countryMap[prefix1];
+  }
+
+  return '';
+}
+
 interface FlightListProps {
   title: string;
   flights: FlightInfo[] | Flight[];
@@ -206,8 +290,28 @@ interface FlightListProps {
 
 export function FlightList({ title, flights, selectedFlight, onSelect, type, currentAirportIcao, flightRoutes }: FlightListProps) {
   const listRef = useRef<HTMLDivElement>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
   const middleItemRef = useRef<HTMLDivElement>(null);
   const { t, lang } = useLanguage();
+  const [scale, setScale] = useState(1);
+
+  // Ctrl + 滚轮缩放处理
+  const handleWheel = useCallback((e: WheelEvent) => {
+    if (e.ctrlKey) {
+      e.preventDefault();
+      const delta = e.deltaY > 0 ? -SCALE_STEP : SCALE_STEP;
+      setScale(prev => Math.min(MAX_SCALE, Math.max(MIN_SCALE, prev + delta)));
+    }
+  }, []);
+
+  // 绑定 wheel 事件
+  useEffect(() => {
+    const container = containerRef.current;
+    if (container) {
+      container.addEventListener('wheel', handleWheel, { passive: false });
+      return () => container.removeEventListener('wheel', handleWheel);
+    }
+  }, [handleWheel]);
 
   const formatTime = (timestamp: number) => {
     const date = new Date(timestamp * 1000);
@@ -255,12 +359,15 @@ export function FlightList({ title, flights, selectedFlight, onSelect, type, cur
   const mostRecentIndex = 0;
 
   return (
-    <Container>
+    <Container ref={containerRef}>
       <Header>
         <Title>{title}</Title>
-        <Count>{sortedFlights.length}{flights.length > 10 ? ` / ${flights.length}` : ''}</Count>
+        <HeaderRight>
+          {scale !== 1 && <ScaleIndicator>{Math.round(scale * 100)}%</ScaleIndicator>}
+          <Count>{sortedFlights.length}{flights.length > 10 ? ` / ${flights.length}` : ''}</Count>
+        </HeaderRight>
       </Header>
-      <List ref={listRef}>
+      <List ref={listRef} $scale={scale}>
         {sortedFlights.length === 0 ? (
           <EmptyState>{type === 'arrival' ? t.noArrivals : t.noDepartures}</EmptyState>
         ) : (
@@ -285,15 +392,25 @@ export function FlightList({ title, flights, selectedFlight, onSelect, type, cur
                       const airportIcaos = currentAirportIcao.split('/');
                       const isCurrentAirport = (icao: string | null) => icao ? airportIcaos.includes(icao) : false;
 
+                      // 获取机场和国家信息的辅助函数
+                      const formatAirportWithCountry = (icao: string) => {
+                        const airport = getAirportName(icao);
+                        const country = getCountryByIcao(icao, lang);
+                        if (country && country !== airport) {
+                          return `${airport} ${country}`;
+                        }
+                        return airport;
+                      };
+
                       // 优先使用 OpenSky 的航线数据
                       if (isFlightInfo(flight)) {
                         if (type === 'arrival' && flight.estDepartureAirport && !isCurrentAirport(flight.estDepartureAirport)) {
-                          const airport = getAirportName(flight.estDepartureAirport);
-                          return <Route>（{airport}）</Route>;
+                          const display = formatAirportWithCountry(flight.estDepartureAirport);
+                          return <Route>（{display}）</Route>;
                         }
                         if (type === 'departure' && flight.estArrivalAirport && !isCurrentAirport(flight.estArrivalAirport)) {
-                          const airport = getAirportName(flight.estArrivalAirport);
-                          return <Route>（{lang === 'ja' ? `${airport}${t.to}` : airport}）</Route>;
+                          const display = formatAirportWithCountry(flight.estArrivalAirport);
+                          return <Route>（{display}）</Route>;
                         }
                       }
                       // 使用 HexDB.io 的航线数据
@@ -301,12 +418,12 @@ export function FlightList({ title, flights, selectedFlight, onSelect, type, cur
                       const route = callsign ? flightRoutes?.get(callsign) : null;
                       if (route) {
                         if (type === 'arrival' && route.origin && !isCurrentAirport(route.origin)) {
-                          const airport = getAirportName(route.origin);
-                          return <Route>（{airport}）</Route>;
+                          const display = formatAirportWithCountry(route.origin);
+                          return <Route>（{display}）</Route>;
                         }
                         if (type === 'departure' && route.destination && !isCurrentAirport(route.destination)) {
-                          const airport = getAirportName(route.destination);
-                          return <Route>（{lang === 'ja' ? `${airport}${t.to}` : airport}）</Route>;
+                          const display = formatAirportWithCountry(route.destination);
+                          return <Route>（{display}）</Route>;
                         }
                       }
                       return null;
@@ -362,6 +479,18 @@ const Header = styled.div`
   background: linear-gradient(180deg, #0d0d18 0%, #0a0a12 100%);
 `;
 
+const HeaderRight = styled.div`
+  display: flex;
+  align-items: center;
+  gap: 8px;
+`;
+
+const ScaleIndicator = styled.span`
+  font-size: 10px;
+  color: rgba(0, 255, 255, 0.5);
+  font-family: 'Consolas', 'Monaco', monospace;
+`;
+
 const Title = styled.h2`
   margin: 0;
   font-size: 14px;
@@ -383,10 +512,11 @@ const Count = styled.span`
   font-family: 'Consolas', 'Monaco', monospace;
 `;
 
-const List = styled.div`
+const List = styled.div<{ $scale: number }>`
   flex: 1;
   overflow-y: auto;
   background: transparent;
+  font-size: ${props => props.$scale}em;
 
   &::-webkit-scrollbar {
     width: 4px;
@@ -412,12 +542,12 @@ const EmptyState = styled.div`
   justify-content: center;
   height: 100%;
   color: rgba(0, 255, 255, 0.3);
-  font-size: 13px;
+  font-size: 0.8125em;  /* 13px -> em for scaling */
   font-family: 'Consolas', 'Monaco', monospace;
 `;
 
 const ListItem = styled.div<{ selected: boolean }>`
-  padding: 10px 14px;
+  padding: 0.625em 0.875em;  /* 10px 14px -> em for scaling */
   cursor: pointer;
   background: ${(props) => (props.selected
     ? 'linear-gradient(90deg, rgba(0, 255, 0, 0.15) 0%, rgba(0, 255, 0, 0.05) 100%)'
@@ -440,31 +570,28 @@ const FlightHeader = styled.div`
   display: flex;
   justify-content: space-between;
   align-items: flex-start;
-  gap: 8px;
+  gap: 0.5em;
 `;
 
 const FlightInfoWrapper = styled.div`
   display: flex;
-  flex-wrap: nowrap;
+  flex-wrap: wrap;
   align-items: baseline;
-  gap: 4px;
+  gap: 0.25em;
   flex: 1;
   min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
 `;
 
 const Callsign = styled.span`
   font-weight: 700;
-  font-size: 14px;
+  font-size: 0.875em;  /* 14px -> em for scaling */
   color: #ffffff;
   font-family: 'Consolas', 'Monaco', monospace;
   letter-spacing: 1px;
 `;
 
 const Time = styled.div`
-  font-size: 12px;
+  font-size: 0.75em;  /* 12px -> em for scaling */
   color: #00ffff;
   font-weight: 600;
   font-family: 'Consolas', 'Monaco', monospace;
@@ -472,33 +599,33 @@ const Time = styled.div`
 `;
 
 const Route = styled.span`
-  font-size: 12px;
+  font-size: 0.75em;  /* 12px -> em for scaling */
   color: rgba(0, 255, 255, 0.6);
 `;
 
 const Airline = styled.span`
-  font-size: 11px;
+  font-size: 0.6875em;  /* 11px -> em for scaling */
   color: rgba(255, 255, 255, 0.5);
 `;
 
 const Details = styled.div`
   display: flex;
-  gap: 12px;
-  margin-top: 4px;
+  gap: 0.75em;
+  margin-top: 0.25em;
 `;
 
 const DetailItem = styled.div`
-  font-size: 11px;
+  font-size: 0.6875em;  /* 11px -> em for scaling */
   color: rgba(0, 255, 255, 0.5);
   display: flex;
   align-items: center;
-  gap: 4px;
+  gap: 0.25em;
   font-family: 'Consolas', 'Monaco', monospace;
 
   &::before {
     content: '';
-    width: 3px;
-    height: 3px;
+    width: 0.2em;
+    height: 0.2em;
     background: #00ffff;
     border-radius: 50%;
     box-shadow: 0 0 4px #00ffff;

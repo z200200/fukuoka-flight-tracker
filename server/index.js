@@ -2,6 +2,7 @@ import express from 'express';
 import cors from 'cors';
 import axios from 'axios';
 import dotenv from 'dotenv';
+import { getAirportFlights, matchFlightAcrossAirports, getAirportList, closeBrowser } from './airport-scraper.js';
 
 dotenv.config();
 
@@ -509,6 +510,59 @@ function getCountryFromReg(reg) {
   return countries[prefix] || countries[reg[0]] || 'Unknown';
 }
 
+// ========== 航班时刻表 API (机场官网爬虫) ==========
+
+// 获取支持的机场列表
+app.get('/api/schedule/airports', (req, res) => {
+  res.json(getAirportList());
+});
+
+// 获取指定机场的航班时刻表
+app.get('/api/schedule/:airport', async (req, res) => {
+  const airport = req.params.airport.toUpperCase();
+  const forceRefresh = req.query.refresh === 'true';
+
+  try {
+    const data = await getAirportFlights(airport, forceRefresh);
+    if (!data) {
+      return res.status(404).json({ error: `Unknown airport: ${airport}` });
+    }
+    res.json(data);
+  } catch (error) {
+    console.error(`[Schedule API] Error for ${airport}:`, error.message);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// 匹配航班号（跨所有机场搜索）
+app.get('/api/schedule/match/:callsign', async (req, res) => {
+  const callsign = req.params.callsign;
+
+  try {
+    const match = await matchFlightAcrossAirports(callsign);
+    res.json(match || { callsign, found: false });
+  } catch (error) {
+    console.error(`[Schedule API] Match error:`, error.message);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// 批量匹配航班号
+app.post('/api/schedule/match', express.json(), async (req, res) => {
+  const { callsigns } = req.body;
+
+  if (!callsigns || !Array.isArray(callsigns)) {
+    return res.status(400).json({ error: 'callsigns array required' });
+  }
+
+  const results = {};
+  for (const cs of callsigns.slice(0, 50)) { // 限制50个
+    results[cs] = await matchFlightAcrossAirports(cs);
+  }
+
+  res.json({ matches: results, count: Object.keys(results).length });
+});
+
 // Health check（包含缓存统计）
 app.get('/health', (req, res) => {
   res.json({
@@ -534,10 +588,23 @@ app.get('/health', (req, res) => {
 app.listen(PORT, () => {
   console.log(`🚀 Proxy server running on http://localhost:${PORT}`);
   console.log(`📡 Proxying OpenSky Network API requests`);
+  console.log(`🛫 Airport schedule scraper enabled (FUK, HND, NRT, ICN)`);
   if (hasCredentials) {
     console.log(`🔐 Mode: Authenticated (higher rate limits)`);
   } else {
     console.log(`🔓 Mode: Anonymous (limited to ~100 requests/day)`);
     console.log(`💡 To get higher limits, register at https://opensky-network.org/`);
   }
+});
+
+// 进程退出时关闭浏览器
+process.on('SIGINT', async () => {
+  console.log('\n🛑 Shutting down...');
+  await closeBrowser();
+  process.exit(0);
+});
+
+process.on('SIGTERM', async () => {
+  await closeBrowser();
+  process.exit(0);
 });

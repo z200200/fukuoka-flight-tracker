@@ -314,7 +314,24 @@ export function FlightProvider({ children }: FlightProviderProps) {
 
         if (flightData.length > 0) {
           // 锁定这批飞机的 ICAO
-          lockedIcaosRef.current = new Set(flightData.map(f => f.icao24));
+          const newLockedIcaos = new Set(flightData.map(f => f.icao24));
+
+          // E: 清理已离开区域的飞机的轨迹
+          setFlightTracks(prev => {
+            const newTracks = new Map<string, TrackWaypoint[]>();
+            for (const [icao, track] of prev) {
+              if (newLockedIcaos.has(icao)) {
+                newTracks.set(icao, track);
+              }
+            }
+            const removed = prev.size - newTracks.size;
+            if (removed > 0) {
+              console.log(`[FlightContext] Cleaned up ${removed} tracks from aircraft that left the area`);
+            }
+            return newTracks;
+          });
+
+          lockedIcaosRef.current = newLockedIcaos;
           lastScanTimeRef.current = Date.now();
           setFlights(flightData);
           console.log(`[FlightContext] Scanned & locked ${flightData.length} aircraft for ${currentAirport.name}`);
@@ -430,6 +447,24 @@ export function FlightProvider({ children }: FlightProviderProps) {
 
     return () => clearInterval(countdownInterval);
   }, []);
+
+  // 同步选中状态：当飞机列表刷新时，更新或清除选中的飞机
+  useEffect(() => {
+    if (!selectedFlight) return;
+
+    // 在新的飞机列表中查找选中的飞机
+    const updatedFlight = flights.find(f => f.icao24 === selectedFlight.icao24);
+
+    if (updatedFlight) {
+      // 飞机还在，更新位置等信息
+      setSelectedFlight(updatedFlight);
+    } else {
+      // 飞机已不在范围内，清除选中状态
+      console.log(`[FlightContext] Selected flight ${selectedFlight.icao24} no longer in range, clearing selection`);
+      setSelectedFlight(null);
+      setSelectedFlightTrack(null);
+    }
+  }, [flights]); // 只依赖 flights，不依赖 selectedFlight 避免循环
 
   // 从实时飞机数据推断到达/出发航班
   // 核心逻辑：每架飞机必须被分类，且只分类一次
@@ -608,6 +643,9 @@ export function FlightProvider({ children }: FlightProviderProps) {
     };
   }, []);
 
+  // 轨迹配置
+  const MAX_TRACK_POINTS = 30; // B: 每架飞机最多保留30个轨迹点
+
   // 使用 adsb.lol 缓存的航迹（服务器自动收集）
   useEffect(() => {
     const fetchAllTracks = async () => {
@@ -622,10 +660,16 @@ export function FlightProvider({ children }: FlightProviderProps) {
           const newTracks = new Map<string, TrackWaypoint[]>();
 
           for (const [icao, points] of Object.entries(tracksData.tracks)) {
+            // E: 只保留当前锁定的飞机的轨迹（清理已离开区域的飞机）
+            if (!lockedIcaosRef.current.has(icao)) continue;
+
             if (points.length >= 2) {
+              // B: 只保留最近 MAX_TRACK_POINTS 个点
+              const limitedPoints = points.slice(-MAX_TRACK_POINTS);
+
               // 转换为 TrackWaypoint 格式
-              const waypoints: TrackWaypoint[] = points.map((p: [number, number], i: number) => ({
-                time: Math.floor(Date.now() / 1000) - (points.length - i) * 30,
+              const waypoints: TrackWaypoint[] = limitedPoints.map((p: [number, number], i: number) => ({
+                time: Math.floor(Date.now() / 1000) - (limitedPoints.length - i) * 30,
                 latitude: p[0],
                 longitude: p[1],
                 baro_altitude: null,
@@ -637,7 +681,7 @@ export function FlightProvider({ children }: FlightProviderProps) {
           }
 
           setFlightTracks(newTracks);
-          console.log(`[FlightContext] adsb.lol tracks: ${newTracks.size} aircraft with trails`);
+          console.log(`[FlightContext] adsb.lol tracks: ${newTracks.size} aircraft with trails (max ${MAX_TRACK_POINTS} points each)`);
         }
       } catch (err) {
         console.warn('[FlightContext] Failed to fetch adsb.lol tracks:', err);

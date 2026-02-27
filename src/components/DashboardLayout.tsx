@@ -23,6 +23,13 @@ export function DashboardLayout() {
 
   const airportTabs = Object.values(AIRPORTS);
 
+  // 机场名称国际化映射
+  const airportNames: Record<string, string> = {
+    fukuoka: t.fukuoka,
+    tokyo: t.tokyo,
+    incheon: t.incheon,
+  };
+
   if (isMobile) {
     return (
       <MobileContainer>
@@ -35,7 +42,7 @@ export function DashboardLayout() {
                 active={currentAirportId === airport.id}
                 onClick={() => setCurrentAirport(airport.id as AirportId)}
               >
-                <AirportTabName>{airport.name}</AirportTabName>
+                <AirportTabName>{airportNames[airport.id] || airport.name}</AirportTabName>
               </AirportTab>
             ))}
           </AirportTabNav>
@@ -104,7 +111,7 @@ export function DashboardLayout() {
                 active={currentAirportId === airport.id}
                 onClick={() => setCurrentAirport(airport.id as AirportId)}
               >
-                <AirportTabName>{airport.name}</AirportTabName>
+                <AirportTabName>{airportNames[airport.id] || airport.name}</AirportTabName>
                 <AirportTabCode>&lt;{airport.iata}&gt;</AirportTabCode>
               </AirportTab>
             ))}

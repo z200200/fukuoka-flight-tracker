@@ -41,3 +41,8 @@ debug-screenshots/
 .vercel
 
 .vercel
+
+# Debug files
+server/debug-*.png
+server/debug-*.html
+test-results/

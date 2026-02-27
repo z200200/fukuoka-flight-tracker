@@ -49,6 +49,11 @@ const translations = {
     kmPerHour: 'km/h',
     degree: '°',
 
+    // Airport names
+    fukuoka: '福冈',
+    tokyo: '东京',
+    incheon: '首尔',
+
     // Welcome modal
     title: 'Flight Tracker',
     subtitle: '实时航班追踪系统',
@@ -107,6 +112,11 @@ const translations = {
     kmPerHour: 'km/h',
     degree: '°',
 
+    // Airport names
+    fukuoka: '福岡',
+    tokyo: '東京',
+    incheon: 'ソウル',
+
     // Welcome modal
     title: 'Flight Tracker',
     subtitle: 'リアルタイム航空追跡システム',
@@ -164,6 +174,11 @@ const translations = {
     meterPerSec: 'm/s',
     kmPerHour: 'km/h',
     degree: '°',
+
+    // Airport names
+    fukuoka: 'Fukuoka',
+    tokyo: 'Tokyo',
+    incheon: 'Seoul',
 
     // Welcome modal
     title: 'Flight Tracker',
