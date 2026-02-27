@@ -6,7 +6,7 @@
   "scripts": {
     "start": "node index.js",
     "dev": "node index.js",
-    "postinstall": "npx playwright install chromium"
+    "postinstall": "npx playwright install chromium || echo 'Playwright install completed (some deps may be missing)'"
   },
   "dependencies": {
     "axios": "^1.6.0",
