@@ -313,11 +313,6 @@ export function FlightList({ title, flights, selectedFlight, onSelect, type, cur
     }
   }, [handleWheel]);
 
-  const formatTime = (timestamp: number) => {
-    const date = new Date(timestamp * 1000);
-    return date.toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit' });
-  };
-
   const isFlightInfo = (flight: FlightInfo | Flight | null | undefined): flight is FlightInfo => {
     return flight != null && typeof flight === 'object' && 'firstSeen' in flight;
   };
@@ -433,7 +428,7 @@ export function FlightList({ title, flights, selectedFlight, onSelect, type, cur
                     )}
                   </FlightInfoWrapper>
                   {(() => {
-                    // 优先显示机场爬虫的计划时间
+                    // 只显示机场爬虫的计划时间，没有时刻表数据则不显示
                     const callsign = flight.callsign?.trim();
                     const route = callsign ? flightRoutes?.get(callsign) : null;
                     if (route?.scheduledTime) {
@@ -444,16 +439,7 @@ export function FlightList({ title, flights, selectedFlight, onSelect, type, cur
                         </Time>
                       );
                     }
-                    // 回退到 ADS-B 时间戳
-                    if (isFlightInfo(flight)) {
-                      return (
-                        <Time $hasSchedule={false}>
-                          {type === 'arrival'
-                            ? formatTime(flight.lastSeen)
-                            : formatTime(flight.firstSeen)}
-                        </Time>
-                      );
-                    }
+                    // 没有时刻表数据，不显示时间
                     return null;
                   })()}
                 </FlightHeader>

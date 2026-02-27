@@ -534,11 +534,12 @@ export function FlightProvider({ children }: FlightProviderProps) {
       );
 
       // 创建FlightInfo对象
+      // 使用飞机自身的lastContact作为时间戳，而不是统一的now
       const flightInfo: FlightInfo = {
         icao24: flight.icao24,
         callsign: flight.callsign || flight.icao24.toUpperCase(), // 无呼号用ICAO24代替
-        firstSeen: now - 3600,
-        lastSeen: now,
+        firstSeen: flight.lastContact || now,
+        lastSeen: flight.lastContact || now,
         estDepartureAirport: route?.origin || null,
         estArrivalAirport: route?.destination || currentAirport.icao,
         estDepartureAirportHorizDistance: Math.round(distance * 1000),
