@@ -317,7 +317,17 @@ export function FlightList({ title, flights, selectedFlight, onSelect, type, cur
     return flight != null && typeof flight === 'object' && 'firstSeen' in flight;
   };
 
-  // Sort flights by time (most recent first) and limit to 10
+  // 解析时间字符串 "HH:MM" 为分钟数（用于排序）
+  const parseTimeToMinutes = (timeStr: string | null | undefined): number | null => {
+    if (!timeStr) return null;
+    const match = timeStr.match(/^(\d{2}):(\d{2})$/);
+    if (match) {
+      return parseInt(match[1], 10) * 60 + parseInt(match[2], 10);
+    }
+    return null;
+  };
+
+  // Sort flights by scheduled time (chronological order) and limit to 10
   const sortedFlights = useMemo(() => {
     if (!flights || flights.length === 0) return [];
     return [...flights]
@@ -328,15 +338,33 @@ export function FlightList({ title, flights, selectedFlight, onSelect, type, cur
         return isValidCallsign(cs) || /^[A-Fa-f0-9]+$/.test(cs); // 允许有效callsign或hex ICAO24
       })
       .sort((a, b) => {
-      const aTime = isFlightInfo(a)
-        ? (type === 'arrival' ? a.lastSeen : a.firstSeen)
-        : a.lastContact;
-      const bTime = isFlightInfo(b)
-        ? (type === 'arrival' ? b.lastSeen : b.firstSeen)
-        : b.lastContact;
-      return bTime - aTime; // Descending order (most recent first)
-    }).slice(0, 10); // 只显示最近10个航班
-  }, [flights, type]);
+        // 优先使用计划时间排序（从时刻表获取）
+        const aCallsign = a.callsign?.trim();
+        const bCallsign = b.callsign?.trim();
+        const aRoute = aCallsign ? flightRoutes?.get(aCallsign) : null;
+        const bRoute = bCallsign ? flightRoutes?.get(bCallsign) : null;
+        const aScheduledMinutes = parseTimeToMinutes(aRoute?.scheduledTime);
+        const bScheduledMinutes = parseTimeToMinutes(bRoute?.scheduledTime);
+
+        // 如果两者都有计划时间，按计划时间升序排序（早的在前）
+        if (aScheduledMinutes !== null && bScheduledMinutes !== null) {
+          return aScheduledMinutes - bScheduledMinutes;
+        }
+
+        // 有计划时间的排在前面
+        if (aScheduledMinutes !== null && bScheduledMinutes === null) return -1;
+        if (aScheduledMinutes === null && bScheduledMinutes !== null) return 1;
+
+        // 都没有计划时间时，按原来的逻辑（最近联系时间）
+        const aTime = isFlightInfo(a)
+          ? (type === 'arrival' ? a.lastSeen : a.firstSeen)
+          : a.lastContact;
+        const bTime = isFlightInfo(b)
+          ? (type === 'arrival' ? b.lastSeen : b.firstSeen)
+          : b.lastContact;
+        return bTime - aTime; // Descending order (most recent first)
+      }).slice(0, 10); // 只显示最近10个航班
+  }, [flights, type, flightRoutes]);
 
   // Auto-scroll to show the most recent flight (first item) in the middle of visible area
   useEffect(() => {
@@ -428,10 +456,11 @@ export function FlightList({ title, flights, selectedFlight, onSelect, type, cur
                     )}
                   </FlightInfoWrapper>
                   {(() => {
-                    // 只显示机场爬虫的计划时间，没有时刻表数据则不显示
+                    // 显示计划时间（优先）或最后联系时间（备用）
                     const callsign = flight.callsign?.trim();
                     const route = callsign ? flightRoutes?.get(callsign) : null;
                     if (route?.scheduledTime) {
+                      // 有时刻表数据，显示计划时间
                       return (
                         <Time $hasSchedule={true}>
                           {route.scheduledTime}
@@ -439,7 +468,22 @@ export function FlightList({ title, flights, selectedFlight, onSelect, type, cur
                         </Time>
                       );
                     }
-                    // 没有时刻表数据，不显示时间
+                    // 没有时刻表数据，显示最后联系时间
+                    const lastContact = isFlightInfo(flight)
+                      ? (type === 'arrival' ? flight.lastSeen : flight.firstSeen)
+                      : flight.lastContact;
+                    if (lastContact) {
+                      const date = new Date(lastContact * 1000);
+                      // 转换为日本时间 (UTC+9)
+                      const japanTime = new Date(date.getTime() + 9 * 60 * 60 * 1000);
+                      const hours = japanTime.getUTCHours().toString().padStart(2, '0');
+                      const minutes = japanTime.getUTCMinutes().toString().padStart(2, '0');
+                      return (
+                        <Time $hasSchedule={false}>
+                          {hours}:{minutes}
+                        </Time>
+                      );
+                    }
                     return null;
                   })()}
                 </FlightHeader>

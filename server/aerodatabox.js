@@ -195,13 +195,18 @@ function parseFlights(data, direction) {
 }
 
 // ========== 格式化显示时间 ==========
-function formatDisplayTime(isoString) {
-	if (!isoString) return null;
+// 从本地时间字符串中提取 HH:MM（不做时区转换）
+// 输入格式: "2026-02-27 15:40+09:00" 或 "2026-02-27T15:40:00+09:00"
+function formatDisplayTime(localTimeString) {
+	if (!localTimeString) return null;
 	try {
-		const date = new Date(isoString);
-		const hours = date.getHours().toString().padStart(2, '0');
-		const minutes = date.getMinutes().toString().padStart(2, '0');
-		return `${hours}:${minutes}`;
+		// 直接从字符串中提取时间部分（本地时间，不转换时区）
+		// 匹配 HH:MM 格式
+		const match = localTimeString.match(/(\d{2}):(\d{2})/);
+		if (match) {
+			return `${match[1]}:${match[2]}`;
+		}
+		return null;
 	} catch {
 		return null;
 	}
