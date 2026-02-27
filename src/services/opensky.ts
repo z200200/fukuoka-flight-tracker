@@ -175,10 +175,10 @@ export class OpenSkyClient {
   // 批量匹配航班号
   async matchFlightsByCallsigns(callsigns: string[]): Promise<Record<string, ScheduledFlight | null>> {
     try {
-      const response = await this.axiosInstance.post<{ results: Record<string, ScheduledFlight | null> }>('/schedule/match', {
+      const response = await this.axiosInstance.post<{ matches: Record<string, ScheduledFlight | null> }>('/schedule/match', {
         callsigns
       });
-      return response.data?.results || {};
+      return response.data?.matches || {};
     } catch (error) {
       console.warn('[OpenSkyClient] Failed to batch match flights:', error);
       return {};
