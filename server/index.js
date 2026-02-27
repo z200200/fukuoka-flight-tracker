@@ -512,6 +512,22 @@ function getCountryFromReg(reg) {
 
 // ========== 航班时刻表 API (机场官网爬虫) ==========
 
+// 测试 Playwright 是否工作
+app.get('/api/schedule/debug', async (req, res) => {
+  const { chromium } = await import('playwright');
+  try {
+    const browser = await chromium.launch({
+      headless: true,
+      args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage', '--disable-gpu']
+    });
+    const version = browser.version();
+    await browser.close();
+    res.json({ status: 'ok', browserVersion: version, message: 'Playwright working' });
+  } catch (error) {
+    res.json({ status: 'error', error: error.message, stack: error.stack?.split('\n').slice(0, 5) });
+  }
+});
+
 // 获取支持的机场列表
 app.get('/api/schedule/airports', (req, res) => {
   res.json(getAirportList());

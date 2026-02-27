@@ -752,6 +752,9 @@ export async function getAirportFlights(airportCode, forceRefresh = false) {
 		return data;
 	} catch (error) {
 		console.error(`[Scraper] ${code} 爬取失败:`, error.message);
+		// 返回数据但附带错误信息
+		data.error = error.message;
+		data.errorStack = error.stack?.split('\n').slice(0, 3).join('\n');
 		return cached?.data || data;
 	}
 }
