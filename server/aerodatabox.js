@@ -214,8 +214,15 @@ export async function matchFlight(callsign, airports = ['FUK', 'HND', 'NRT', 'IC
 	const cleanCallsign = callsign.trim().toUpperCase().replace(/\s/g, '');
 
 	for (const airport of airports) {
-		const cached = scheduleCache.get(airport);
-		if (!cached) continue;
+		let cached = scheduleCache.get(airport);
+
+		// 如果缓存为空，先获取时刻表
+		if (!cached) {
+			console.log(`[AeroDataBox] Cache miss for ${airport}, fetching schedule...`);
+			await getAirportSchedule(airport);
+			cached = scheduleCache.get(airport);
+			if (!cached) continue;
+		}
 
 		const { arrivals, departures } = cached.data;
 
