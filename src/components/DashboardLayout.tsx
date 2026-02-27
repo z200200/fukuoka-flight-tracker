@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import styled from 'styled-components';
 import { MapContainer } from './MapContainer';
 import { FlightListsContainer } from './FlightListsContainer';
@@ -14,6 +14,7 @@ export function DashboardLayout() {
   const { lang, setLang, t } = useLanguage();
   const [showHelp, setShowHelp] = useState(true);
   const [showMobileMenu, setShowMobileMenu] = useState(false);
+  const [isMapFullscreen, setIsMapFullscreen] = useState(false);
 
   // 只在初次加载（没有数据）时显示全屏遮罩，后续刷新显示轻量指示器
   const isInitialLoading = loading && flights.length === 0 && !lastUpdate;
@@ -29,6 +30,24 @@ export function DashboardLayout() {
     tokyo: t.tokyo,
     incheon: t.incheon,
   };
+
+  // F 键切换地图全屏
+  const handleKeyDown = useCallback((e: KeyboardEvent) => {
+    // 忽略输入框中的按键
+    if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
+    if (e.key === 'f' || e.key === 'F') {
+      setIsMapFullscreen(prev => !prev);
+    }
+    // ESC 退出全屏
+    if (e.key === 'Escape' && isMapFullscreen) {
+      setIsMapFullscreen(false);
+    }
+  }, [isMapFullscreen]);
+
+  useEffect(() => {
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [handleKeyDown]);
 
   if (isMobile) {
     return (
@@ -99,6 +118,16 @@ export function DashboardLayout() {
     );
   }
 
+  // 地图全屏模式
+  if (isMapFullscreen) {
+    return (
+      <FullscreenMapContainer>
+        <MapContainer />
+        <FullscreenHint>Press F or ESC to exit fullscreen</FullscreenHint>
+      </FullscreenMapContainer>
+    );
+  }
+
   return (
     <DesktopContainer>
       <WelcomeModal isOpen={showHelp} onClose={() => setShowHelp(false)} />
@@ -139,6 +168,7 @@ export function DashboardLayout() {
             <LangButton active={lang === 'ja'} onClick={() => setLang('ja')}>日本語</LangButton>
             <LangButton active={lang === 'en'} onClick={() => setLang('en')}>EN</LangButton>
           </LanguageSwitch>
+          <FullscreenButton onClick={() => setIsMapFullscreen(true)} title="Press F for fullscreen">⛶</FullscreenButton>
           <DesktopHelpButton onClick={() => setShowHelp(true)}>?</DesktopHelpButton>
         </HeaderRight>
       </Header>
@@ -248,17 +278,18 @@ const UpdateTime = styled.div`
 const CountdownGroup = styled.div`
   display: flex;
   gap: 16px;
+  align-items: flex-end;
 `;
 
 const CountdownItem = styled.div`
   display: flex;
   flex-direction: column;
   gap: 4px;
+  padding: 4px 8px;
 `;
 
 const CountdownItemClickable = styled(CountdownItem)`
   cursor: pointer;
-  padding: 4px 8px;
   border-radius: 4px;
   transition: background 0.2s;
 
@@ -649,6 +680,57 @@ const DesktopHelpButton = styled.button`
   cursor: pointer;
   transition: all 0.2s ease;
   font-family: 'Consolas', 'Monaco', monospace;
+
+  &:hover {
+    background: rgba(0, 212, 255, 0.15);
+    box-shadow: 0 0 15px rgba(0, 212, 255, 0.4);
+  }
+`;
+
+// 全屏模式样式
+const FullscreenMapContainer = styled.div`
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 9999;
+  background: #000;
+`;
+
+const FullscreenHint = styled.div`
+  position: absolute;
+  bottom: 20px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: rgba(0, 0, 0, 0.7);
+  color: rgba(0, 255, 255, 0.8);
+  padding: 8px 16px;
+  border-radius: 4px;
+  font-size: 12px;
+  font-family: 'Consolas', 'Monaco', monospace;
+  pointer-events: none;
+  opacity: 0.8;
+  animation: fadeOut 3s forwards;
+  animation-delay: 2s;
+
+  @keyframes fadeOut {
+    to {
+      opacity: 0;
+    }
+  }
+`;
+
+const FullscreenButton = styled.button`
+  background: transparent;
+  border: 1px solid rgba(0, 212, 255, 0.4);
+  color: #00d4ff;
+  width: 32px;
+  height: 32px;
+  border-radius: 4px;
+  font-size: 16px;
+  cursor: pointer;
+  transition: all 0.2s ease;
 
   &:hover {
     background: rgba(0, 212, 255, 0.15);

@@ -316,24 +316,7 @@ export function FlightProvider({ children }: FlightProviderProps) {
 
         if (flightData.length > 0) {
           // 锁定这批飞机的 ICAO
-          const newLockedIcaos = new Set(flightData.map(f => f.icao24));
-
-          // E: 清理已离开区域的飞机的轨迹
-          setFlightTracks(prev => {
-            const newTracks = new Map<string, TrackWaypoint[]>();
-            for (const [icao, track] of prev) {
-              if (newLockedIcaos.has(icao)) {
-                newTracks.set(icao, track);
-              }
-            }
-            const removed = prev.size - newTracks.size;
-            if (removed > 0) {
-              console.log(`[FlightContext] Cleaned up ${removed} tracks from aircraft that left the area`);
-            }
-            return newTracks;
-          });
-
-          lockedIcaosRef.current = newLockedIcaos;
+          lockedIcaosRef.current = new Set(flightData.map(f => f.icao24));
           lastScanTimeRef.current = Date.now();
           setFlights(flightData);
           console.log(`[FlightContext] Scanned & locked ${flightData.length} aircraft for ${currentAirport.name}`);
@@ -662,9 +645,6 @@ export function FlightProvider({ children }: FlightProviderProps) {
           const newTracks = new Map<string, TrackWaypoint[]>();
 
           for (const [icao, points] of Object.entries(tracksData.tracks)) {
-            // E: 只保留当前锁定的飞机的轨迹（清理已离开区域的飞机）
-            if (!lockedIcaosRef.current.has(icao)) continue;
-
             if (points.length >= 2) {
               // B: 只保留最近 MAX_TRACK_POINTS 个点
               const limitedPoints = points.slice(-MAX_TRACK_POINTS);

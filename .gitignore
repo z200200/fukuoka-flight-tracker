@@ -46,3 +46,5 @@ debug-screenshots/
 server/debug-*.png
 server/debug-*.html
 test-results/
+
+.env*.local

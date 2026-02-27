@@ -189,6 +189,11 @@ export function MapContainer() {
     return [currentAirport.latitude, currentAirport.longitude];
   };
 
+  // Filter out ground aircraft - they should not be displayed at all
+  const airborneFlights = useMemo(() => {
+    return flights.filter(flight => !flight.onGround);
+  }, [flights]);
+
   // Generate real flight tracks from track data
   const realFlightTracks = useMemo(() => {
     const tracks: Array<{
@@ -197,7 +202,7 @@ export function MapContainer() {
       hasTrack: boolean;
     }> = [];
 
-    flights.forEach((flight) => {
+    airborneFlights.forEach((flight) => {
       const trackData = flightTracks.get(flight.icao24);
       if (trackData && trackData.length > 1) {
         // Use real track data
@@ -210,25 +215,37 @@ export function MapContainer() {
           hasTrack: true,
         });
       } else {
-        // Fallback: draw line from nearest airport to current position
-        const airportCoords = getNearestAirportCoords(flight.latitude, flight.longitude);
-        tracks.push({
-          icao24: flight.icao24,
-          positions: [
-            airportCoords,
-            [flight.latitude, flight.longitude] as [number, number],
-          ],
-          hasTrack: false,
-        });
+        // Check if aircraft is within the tracking radius before drawing estimated route
+        const distanceToAirport = getDistance(
+          flight.latitude,
+          flight.longitude,
+          currentAirport.latitude,
+          currentAirport.longitude
+        );
+
+        // Only draw orange estimated line for aircraft within the tracking circle
+        if (distanceToAirport <= currentAirport.radiusKm) {
+          // Fallback: draw line from nearest airport to current position
+          const airportCoords = getNearestAirportCoords(flight.latitude, flight.longitude);
+          tracks.push({
+            icao24: flight.icao24,
+            positions: [
+              airportCoords,
+              [flight.latitude, flight.longitude] as [number, number],
+            ],
+            hasTrack: false,
+          });
+        }
+        // Aircraft outside the circle: no estimated route line, but still shown on map
       }
     });
 
     return tracks;
-  }, [flights, flightTracks, currentAirport]);
+  }, [airborneFlights, flightTracks, currentAirport]);
 
   const markers = useMemo(
     () =>
-      flights.map((flight) => {
+      airborneFlights.map((flight) => {
         const isSelected = selectedFlight?.icao24 === flight.icao24;
         const planeIcon = createPlaneIcon(flight.heading, isSelected);
 
@@ -290,7 +307,7 @@ export function MapContainer() {
           </Marker>
         );
       }),
-    [flights, selectedFlight]
+    [airborneFlights, selectedFlight, flightRoutes, t]
   );
 
   return (
@@ -422,8 +439,8 @@ export function MapContainer() {
 
       <StatusOverlay>
         <StatusText>
-          {t.tracking}: {flights.length} {t.aircraft} |
-          {t.tracks}: {realFlightTracks.filter(track => track.hasTrack).length}/{flights.length}
+          {t.tracking}: {airborneFlights.length} {t.aircraft} |
+          {t.tracks}: {realFlightTracks.filter(track => track.hasTrack).length}/{airborneFlights.length}
         </StatusText>
       </StatusOverlay>
 
