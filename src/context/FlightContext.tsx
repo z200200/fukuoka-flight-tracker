@@ -378,28 +378,61 @@ export function FlightProvider({ children }: FlightProviderProps) {
   useEffect(() => {
     const loadSchedule = async () => {
       try {
-        console.log(`[FlightContext] Loading schedule for ${currentAirport.iata}...`);
-        const schedule = await fetchAirportSchedule(currentAirport.iata);
+        // 对于多机场区域（如东京 HND+NRT），分别获取每个子机场的时刻表并合并
+        const airportCodes: string[] = [];
+        if (currentAirport.subAirports && currentAirport.subAirports.length > 0) {
+          // 多机场区域：使用子机场的IATA代码
+          currentAirport.subAirports.forEach(sub => airportCodes.push(sub.iata));
+          console.log(`[FlightContext] Loading schedule for multi-airport: ${airportCodes.join(', ')}...`);
+        } else {
+          // 单机场：直接使用IATA代码
+          airportCodes.push(currentAirport.iata);
+          console.log(`[FlightContext] Loading schedule for ${currentAirport.iata}...`);
+        }
 
-        if (schedule) {
-          // 直接使用时刻表数据
-          setArrivals(schedule.arrivals || []);
-          setDepartures(schedule.departures || []);
+        // 并行获取所有机场的时刻表
+        const schedulePromises = airportCodes.map(code => fetchAirportSchedule(code));
+        const schedules = await Promise.all(schedulePromises);
+
+        // 合并所有时刻表数据
+        const allArrivals: ScheduledFlight[] = [];
+        const allDepartures: ScheduledFlight[] = [];
+
+        schedules.forEach((schedule, index) => {
+          if (schedule) {
+            console.log(`[FlightContext] ${airportCodes[index]}: ${schedule.arrivals?.length || 0} arrivals, ${schedule.departures?.length || 0} departures`);
+            if (schedule.arrivals) allArrivals.push(...schedule.arrivals);
+            if (schedule.departures) allDepartures.push(...schedule.departures);
+          }
+        });
+
+        if (allArrivals.length > 0 || allDepartures.length > 0) {
+          // 按时间排序（合并后重新排序）
+          allArrivals.sort((a, b) => {
+            if (!a.scheduledTime || !b.scheduledTime) return 0;
+            return a.scheduledTime.localeCompare(b.scheduledTime);
+          });
+          allDepartures.sort((a, b) => {
+            if (!a.scheduledTime || !b.scheduledTime) return 0;
+            return a.scheduledTime.localeCompare(b.scheduledTime);
+          });
+
+          setArrivals(allArrivals);
+          setDepartures(allDepartures);
 
           // 创建时刻表中航班callsign的集合 - 用于地图颜色区分
-          // 注意：ScheduledFlight 使用 flightNumber 字段
           const callsigns = new Set<string>();
-          schedule.arrivals?.forEach(f => {
+          allArrivals.forEach(f => {
             const normalized = normalizeCallsign(f.flightNumber);
             if (normalized) callsigns.add(normalized);
           });
-          schedule.departures?.forEach(f => {
+          allDepartures.forEach(f => {
             const normalized = normalizeCallsign(f.flightNumber);
             if (normalized) callsigns.add(normalized);
           });
           setScheduledCallsigns(callsigns);
 
-          console.log(`[FlightContext] Schedule loaded: ${schedule.arrivals?.length || 0} arrivals, ${schedule.departures?.length || 0} departures, ${callsigns.size} scheduled callsigns`);
+          console.log(`[FlightContext] Schedule loaded (merged): ${allArrivals.length} arrivals, ${allDepartures.length} departures, ${callsigns.size} scheduled callsigns`);
         } else {
           // 没有时刻表数据时，清空列表
           setArrivals([]);
@@ -416,7 +449,7 @@ export function FlightProvider({ children }: FlightProviderProps) {
     };
 
     loadSchedule();
-  }, [currentAirportId, fetchAirportSchedule, currentAirport.iata]);
+  }, [currentAirportId, fetchAirportSchedule, currentAirport.iata, currentAirport.subAirports]);
 
   // Parse track waypoint array to object
   // Array format: [time, latitude, longitude, baro_altitude, true_track, on_ground]

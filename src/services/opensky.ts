@@ -18,7 +18,7 @@ export class OpenSkyClient {
   constructor() {
     this.axiosInstance = axios.create({
       baseURL: BASE_URL,
-      timeout: 30000,
+      timeout: 60000, // 增加到60秒以应对Render冷启动
     });
 
     // Add response interceptor to extract rate limit info
