@@ -418,7 +418,7 @@ export function MapContainer() {
       <StatusOverlay>
         <StatusText>
           {t.tracking}: {flights.length} {t.aircraft} |
-          {t.tracks}: {realFlightTracks.filter(track => track.hasTrack).length}/{Math.min(flights.filter(f => !f.onGround).length, 3)}
+          {t.tracks}: {realFlightTracks.filter(track => track.hasTrack).length}/{flights.length}
         </StatusText>
       </StatusOverlay>
 

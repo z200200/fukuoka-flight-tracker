@@ -189,8 +189,7 @@ export function FlightProvider({ children }: FlightProviderProps) {
         }>;
         const flightData = states
           .filter((state) => state.latitude !== null && state.longitude !== null)
-          // 过滤掉地面上静止的飞机（速度<5m/s约18km/h），保留正在滑行或刚降落的
-          .filter((state) => !state.on_ground || (state.velocity && state.velocity > 5))
+          .filter((state) => !state.on_ground) // 只显示空中的飞机
           .map((state) => ({
             icao24: state.icao24,
             callsign: state.callsign?.trim() || null,
@@ -289,8 +288,7 @@ export function FlightProvider({ children }: FlightProviderProps) {
           }>;
           const flightData = states
             .filter((state) => state.latitude !== null && state.longitude !== null)
-            // 过滤掉地面上静止的飞机（速度<5m/s约18km/h），保留正在滑行或刚降落的
-            .filter((state) => !state.on_ground || (state.velocity && state.velocity > 5))
+            .filter((state) => !state.on_ground) // 只显示空中的飞机
             .map((state) => ({
               icao24: state.icao24,
               callsign: state.callsign?.trim() || null,
@@ -305,8 +303,13 @@ export function FlightProvider({ children }: FlightProviderProps) {
               departureAirport: null,
               arrivalAirport: null,
             }));
-          setFlights(flightData);
-          console.log(`[FlightContext] adsb.lol: ${flightData.length} aircraft for ${currentAirport.name}`);
+          // 数据保护：如果新数据为空但之前有数据，保留旧数据（可能是API临时故障）
+          if (flightData.length > 0) {
+            setFlights(flightData);
+            console.log(`[FlightContext] adsb.lol: ${flightData.length} aircraft for ${currentAirport.name}`);
+          } else {
+            console.warn(`[FlightContext] adsb.lol returned 0 aircraft, keeping previous data`);
+          }
         } else {
           // 回退到 OpenSky
           console.log(`[FlightContext] adsb.lol failed, falling back to OpenSky...`);
@@ -320,11 +323,17 @@ export function FlightProvider({ children }: FlightProviderProps) {
             const flightData = (statesResponse.states as unknown as unknown[][])
               .map(parseStateArray)
               .filter((state) => state.latitude !== null && state.longitude !== null)
+              .filter((state) => !state.on_ground) // 只显示空中的飞机
               .map(convertStateVectorToFlight);
-            setFlights(flightData);
-            console.log(`[FlightContext] OpenSky: ${flightData.length} aircraft for ${currentAirport.name}`);
+            // 数据保护：如果新数据为空但之前有数据，保留旧数据
+            if (flightData.length > 0) {
+              setFlights(flightData);
+              console.log(`[FlightContext] OpenSky: ${flightData.length} aircraft for ${currentAirport.name}`);
+            } else {
+              console.warn(`[FlightContext] OpenSky returned 0 aircraft, keeping previous data`);
+            }
           } else {
-            setFlights([]);
+            console.warn(`[FlightContext] No data from OpenSky, keeping previous data`);
           }
         }
 
@@ -413,7 +422,6 @@ export function FlightProvider({ children }: FlightProviderProps) {
       const nearestAirport = getNearestAirportCoords(flight.latitude, flight.longitude);
       const distance = getDistance(flight.latitude, flight.longitude, nearestAirport.lat, nearestAirport.lon);
       const altitude = flight.altitude || 0;
-      const isOnGround = flight.onGround;
 
       // 获取航线信息（如果有呼号）
       const route = flight.callsign ? flightRoutes.get(flight.callsign) : null;
@@ -464,31 +472,10 @@ export function FlightProvider({ children }: FlightProviderProps) {
         }
       }
 
-      // 2. 无航线信息或航线不经过当前机场，根据飞行状态判断
+      // 2. 无航线信息或航线不经过当前机场，根据飞行方向判断
       if (!classified) {
-        // 在机场附近地面上 -> 出发（可能正在滑行准备起飞）
-        if (isOnGround && distance < 30) {
-          inferredDepartures.push({
-            ...flightInfo,
-            estDepartureAirport: currentAirport.icao,
-          });
-          classified = true;
-        }
-        // 低空且朝向机场 -> 到达
-        else if (altitude < 3000 && headingTowards === true) {
-          inferredArrivals.push(flightInfo);
-          classified = true;
-        }
-        // 低空且背向机场 -> 出发
-        else if (altitude < 3000 && headingTowards === false) {
-          inferredDepartures.push({
-            ...flightInfo,
-            estDepartureAirport: currentAirport.icao,
-          });
-          classified = true;
-        }
         // 朝向机场 -> 到达
-        else if (headingTowards === true) {
+        if (headingTowards === true) {
           inferredArrivals.push(flightInfo);
           classified = true;
         }
