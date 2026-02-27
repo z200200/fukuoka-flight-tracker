@@ -82,16 +82,21 @@ async function getBrowser() {
 		try {
 			browser = await chromium.launch({
 				headless: true,
+				timeout: 60000, // 增加启动超时
 				args: [
 					'--no-sandbox',
 					'--disable-setuid-sandbox',
 					'--disable-dev-shm-usage',
 					'--disable-gpu',
-					'--single-process', // 适合内存受限环境
+					'--disable-software-rasterizer',
 					'--disable-extensions',
 					'--disable-background-networking',
 					'--disable-default-apps',
 					'--mute-audio',
+					'--no-zygote', // Render 环境需要
+					'--disable-accelerated-2d-canvas',
+					'--disable-canvas-aa',
+					'--disable-2d-canvas-clip-aa',
 				]
 			});
 			browserInitError = null;
