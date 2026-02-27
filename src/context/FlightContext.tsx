@@ -303,13 +303,21 @@ export function FlightProvider({ children }: FlightProviderProps) {
               departureAirport: null,
               arrivalAirport: null,
             }));
-          // 数据保护：如果新数据为空但之前有数据，保留旧数据（可能是API临时故障）
-          if (flightData.length > 0) {
-            setFlights(flightData);
+          // 数据保护：防止API不稳定导致数量大幅波动
+          setFlights(prev => {
+            // 如果新数据为空，保留旧数据
+            if (flightData.length === 0) {
+              console.warn(`[FlightContext] adsb.lol returned 0 aircraft, keeping previous data (${prev.length})`);
+              return prev;
+            }
+            // 如果新数据比旧数据少超过50%，可能是API故障，保留旧数据
+            if (prev.length > 0 && flightData.length < prev.length * 0.5) {
+              console.warn(`[FlightContext] adsb.lol: suspicious drop ${prev.length} -> ${flightData.length}, keeping previous data`);
+              return prev;
+            }
             console.log(`[FlightContext] adsb.lol: ${flightData.length} aircraft for ${currentAirport.name}`);
-          } else {
-            console.warn(`[FlightContext] adsb.lol returned 0 aircraft, keeping previous data`);
-          }
+            return flightData;
+          });
         } else {
           // 回退到 OpenSky
           console.log(`[FlightContext] adsb.lol failed, falling back to OpenSky...`);
@@ -325,13 +333,19 @@ export function FlightProvider({ children }: FlightProviderProps) {
               .filter((state) => state.latitude !== null && state.longitude !== null)
               .filter((state) => !state.on_ground) // 只显示空中的飞机
               .map(convertStateVectorToFlight);
-            // 数据保护：如果新数据为空但之前有数据，保留旧数据
-            if (flightData.length > 0) {
-              setFlights(flightData);
+            // 数据保护：防止API不稳定导致数量大幅波动
+            setFlights(prev => {
+              if (flightData.length === 0) {
+                console.warn(`[FlightContext] OpenSky returned 0 aircraft, keeping previous data (${prev.length})`);
+                return prev;
+              }
+              if (prev.length > 0 && flightData.length < prev.length * 0.5) {
+                console.warn(`[FlightContext] OpenSky: suspicious drop ${prev.length} -> ${flightData.length}, keeping previous data`);
+                return prev;
+              }
               console.log(`[FlightContext] OpenSky: ${flightData.length} aircraft for ${currentAirport.name}`);
-            } else {
-              console.warn(`[FlightContext] OpenSky returned 0 aircraft, keeping previous data`);
-            }
+              return flightData;
+            });
           } else {
             console.warn(`[FlightContext] No data from OpenSky, keeping previous data`);
           }
