@@ -512,20 +512,44 @@ function getCountryFromReg(reg) {
 
 // ========== 航班时刻表 API (机场官网爬虫) ==========
 
-// 测试 Playwright 是否工作
+// 测试 Playwright 和浏览器状态
 app.get('/api/schedule/debug', async (req, res) => {
+  const { getBrowserStatus } = await import('./airport-scraper.js');
   const { chromium } = await import('playwright');
+
+  const status = getBrowserStatus();
+  const result = {
+    ...status,
+    timestamp: new Date().toISOString(),
+    nodeVersion: process.version,
+    env: {
+      RENDER: process.env.RENDER || 'false',
+      HOME: process.env.HOME,
+      PLAYWRIGHT_BROWSERS_PATH: process.env.PLAYWRIGHT_BROWSERS_PATH || '(not set)'
+    }
+  };
+
   try {
     const browser = await chromium.launch({
       headless: true,
-      args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage', '--disable-gpu']
+      args: [
+        '--no-sandbox',
+        '--disable-setuid-sandbox',
+        '--disable-dev-shm-usage',
+        '--disable-gpu',
+        '--single-process'
+      ]
     });
-    const version = browser.version();
+    result.browserTest = 'ok';
+    result.browserVersion = browser.version();
     await browser.close();
-    res.json({ status: 'ok', browserVersion: version, message: 'Playwright working' });
   } catch (error) {
-    res.json({ status: 'error', error: error.message, stack: error.stack?.split('\n').slice(0, 5) });
+    result.browserTest = 'failed';
+    result.browserError = error.message;
+    result.browserStack = error.stack?.split('\n').slice(0, 5);
   }
+
+  res.json(result);
 });
 
 // 获取支持的机场列表

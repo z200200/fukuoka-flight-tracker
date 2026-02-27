@@ -66,21 +66,55 @@ const CACHE_TTL = 5 * 60 * 1000; // 5分钟
 
 // ========== 浏览器管理 ==========
 let browser = null;
+let browserInitError = null; // 记录浏览器初始化错误
 
 async function getBrowser() {
 	if (!browser || !browser.isConnected()) {
 		console.log('[Scraper] 启动浏览器...');
-		browser = await chromium.launch({
-			headless: true,
-			args: [
-				'--no-sandbox',
-				'--disable-setuid-sandbox',
-				'--disable-dev-shm-usage',
-				'--disable-gpu',
-			]
+		console.log('[Scraper] 环境:', {
+			platform: process.platform,
+			nodeVersion: process.version,
+			isRender: !!process.env.RENDER,
+			HOME: process.env.HOME,
+			PLAYWRIGHT_BROWSERS_PATH: process.env.PLAYWRIGHT_BROWSERS_PATH || '(not set)'
 		});
+
+		try {
+			browser = await chromium.launch({
+				headless: true,
+				args: [
+					'--no-sandbox',
+					'--disable-setuid-sandbox',
+					'--disable-dev-shm-usage',
+					'--disable-gpu',
+					'--single-process', // 适合内存受限环境
+					'--disable-extensions',
+					'--disable-background-networking',
+					'--disable-default-apps',
+					'--mute-audio',
+				]
+			});
+			browserInitError = null;
+			console.log('[Scraper] 浏览器启动成功, version:', browser.version());
+		} catch (error) {
+			browserInitError = error;
+			console.error('[Scraper] 浏览器启动失败:', error.message);
+			console.error('[Scraper] 错误详情:', error.stack);
+			throw new Error(`Browser launch failed: ${error.message}`);
+		}
 	}
 	return browser;
+}
+
+// 获取浏览器状态用于诊断
+export function getBrowserStatus() {
+	return {
+		isConnected: browser?.isConnected() || false,
+		hasError: !!browserInitError,
+		errorMessage: browserInitError?.message || null,
+		platform: process.platform,
+		isRender: !!process.env.RENDER
+	};
 }
 
 export async function closeBrowser() {
