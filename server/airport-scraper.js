@@ -70,7 +70,15 @@ let browser = null;
 async function getBrowser() {
 	if (!browser || !browser.isConnected()) {
 		console.log('[Scraper] 启动浏览器...');
-		browser = await chromium.launch({ headless: true });
+		browser = await chromium.launch({
+			headless: true,
+			args: [
+				'--no-sandbox',
+				'--disable-setuid-sandbox',
+				'--disable-dev-shm-usage',
+				'--disable-gpu',
+			]
+		});
 	}
 	return browser;
 }
