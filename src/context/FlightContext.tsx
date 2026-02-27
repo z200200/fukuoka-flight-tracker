@@ -341,10 +341,9 @@ export function FlightProvider({ children }: FlightProviderProps) {
     return () => clearInterval(interval);
   }, [currentAirport, fetchAircraftAdsbLol, fetchStatesAroundAirport, parseStateArray, convertStateVectorToFlight, isPageVisible]);
 
-  // 从实时飞机数据推断到达/出发航班（替代被限流的OpenSky API）
-  // 逻辑：
-  // - 到达：下降中（垂直速率<0）或低空（<3000m）接近机场的飞机
-  // - 出发：上升中（垂直速率>0）或刚起飞离开机场的飞机
+  // 从实时飞机数据推断到达/出发航班
+  // 核心逻辑：每架飞机必须被分类，且只分类一次
+  // 飞机总数 = 到港飞机 + 出港飞机
   useEffect(() => {
     if (flights.length === 0) {
       setArrivals([]);
@@ -361,7 +360,7 @@ export function FlightProvider({ children }: FlightProviderProps) {
 
     // 计算两点间距离（km）
     const getDistance = (lat1: number, lon1: number, lat2: number, lon2: number) => {
-      const R = 6371; // 地球半径（km）
+      const R = 6371;
       const dLat = (lat2 - lat1) * Math.PI / 180;
       const dLon = (lon2 - lon1) * Math.PI / 180;
       const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
@@ -371,91 +370,141 @@ export function FlightProvider({ children }: FlightProviderProps) {
       return R * c;
     };
 
-    const airportLat = currentAirport.latitude;
-    const airportLon = currentAirport.longitude;
-    const now = Math.floor(Date.now() / 1000);
+    // 计算飞机是否朝向机场（基于航向）
+    const isHeadingTowards = (flightLat: number, flightLon: number, heading: number | null, airportLat: number, airportLon: number) => {
+      if (heading === null) return null; // 无法判断
+      // 计算从飞机到机场的方位角
+      const dLon = (airportLon - flightLon) * Math.PI / 180;
+      const lat1 = flightLat * Math.PI / 180;
+      const lat2 = airportLat * Math.PI / 180;
+      const y = Math.sin(dLon) * Math.cos(lat2);
+      const x = Math.cos(lat1) * Math.sin(lat2) - Math.sin(lat1) * Math.cos(lat2) * Math.cos(dLon);
+      let bearing = Math.atan2(y, x) * 180 / Math.PI;
+      bearing = (bearing + 360) % 360;
+      // 计算航向与方位角的差值
+      const diff = Math.abs(heading - bearing);
+      const angleDiff = diff > 180 ? 360 - diff : diff;
+      return angleDiff < 60; // 航向在机场方向±60度范围内视为朝向机场
+    };
 
+    // 获取最近的子机场坐标（用于东京等多机场区域）
+    const getNearestAirportCoords = (lat: number, lon: number): { lat: number; lon: number } => {
+      if (currentAirport.subAirports && currentAirport.subAirports.length > 0) {
+        let nearestDist = Infinity;
+        let nearest = { lat: currentAirport.latitude, lon: currentAirport.longitude };
+        for (const sub of currentAirport.subAirports) {
+          const dist = getDistance(lat, lon, sub.latitude, sub.longitude);
+          if (dist < nearestDist) {
+            nearestDist = dist;
+            nearest = { lat: sub.latitude, lon: sub.longitude };
+          }
+        }
+        return nearest;
+      }
+      return { lat: currentAirport.latitude, lon: currentAirport.longitude };
+    };
+
+    const now = Math.floor(Date.now() / 1000);
     const inferredArrivals: FlightInfo[] = [];
     const inferredDepartures: FlightInfo[] = [];
 
     flights.forEach(flight => {
-      if (!flight.callsign) return; // 跳过无呼号的航班
-
-      const distance = getDistance(flight.latitude, flight.longitude, airportLat, airportLon);
+      // 获取最近的机场坐标
+      const nearestAirport = getNearestAirportCoords(flight.latitude, flight.longitude);
+      const distance = getDistance(flight.latitude, flight.longitude, nearestAirport.lat, nearestAirport.lon);
       const altitude = flight.altitude || 0;
       const isOnGround = flight.onGround;
 
-      // 获取航线信息
-      const route = flightRoutes.get(flight.callsign);
+      // 获取航线信息（如果有呼号）
+      const route = flight.callsign ? flightRoutes.get(flight.callsign) : null;
 
-      // 判断是到达还是出发
-      // 使用机场配置的范围（radiusKm）
-      const inRange = distance < currentAirport.radiusKm;
-
-      // 到达条件（优先根据航线信息判断）：
-      // 1. 航线目的地是当前机场（支持多机场如东京 RJTT/RJAA）
-      // 2. 或者在范围内且高度较低（正在降落）
-      const isArrival = matchesAirport(route?.destination || null) ||
-        (inRange && !route && altitude < 5000);
-
-      // 出发条件（优先根据航线信息判断）：
-      // 1. 航线出发地是当前机场（支持多机场如东京 RJTT/RJAA）
-      // 2. 或者在机场附近地面 或 刚起飞
-      const isDeparture = matchesAirport(route?.origin || null) ||
-        (distance < 20 && (isOnGround || altitude < 2000));
+      // 判断飞机方向
+      const headingTowards = isHeadingTowards(
+        flight.latitude, flight.longitude, flight.heading,
+        nearestAirport.lat, nearestAirport.lon
+      );
 
       // 创建FlightInfo对象
       const flightInfo: FlightInfo = {
         icao24: flight.icao24,
-        callsign: flight.callsign,
-        firstSeen: now - 3600, // 假设1小时前首次看到
+        callsign: flight.callsign || flight.icao24.toUpperCase(), // 无呼号用ICAO24代替
+        firstSeen: now - 3600,
         lastSeen: now,
         estDepartureAirport: route?.origin || null,
         estArrivalAirport: route?.destination || currentAirport.icao,
-        estDepartureAirportHorizDistance: null,
-        estDepartureAirportVertDistance: null,
+        estDepartureAirportHorizDistance: Math.round(distance * 1000),
+        estDepartureAirportVertDistance: altitude ? Math.round(altitude) : null,
         estArrivalAirportHorizDistance: Math.round(distance * 1000),
         estArrivalAirportVertDistance: altitude ? Math.round(altitude) : null,
         departureAirportCandidatesCount: 1,
         arrivalAirportCandidatesCount: 1,
       };
 
-      // 根据航线信息和位置分类
+      // 分类逻辑（优先级从高到低，每架飞机只分类一次）
+      let classified = false;
+
+      // 1. 有航线信息时，优先根据航线判断
       if (route) {
-        // 有航线信息，优先使用（支持多机场如东京 RJTT/RJAA）
         if (matchesAirport(route.destination)) {
+          // 目的地是当前机场 -> 到达
           inferredArrivals.push({
             ...flightInfo,
-            estArrivalAirport: route.destination, // 保留实际机场代码
+            estArrivalAirport: route.destination,
             estDepartureAirport: route.origin,
           });
+          classified = true;
         } else if (matchesAirport(route.origin)) {
+          // 出发地是当前机场 -> 出发
           inferredDepartures.push({
             ...flightInfo,
-            estDepartureAirport: route.origin, // 保留实际机场代码
-            estArrivalAirport: route.destination,
-          });
-        } else if (inRange) {
-          // 有航线但不经过当前机场，显示为到达（过境航班）
-          inferredArrivals.push({
-            ...flightInfo,
             estDepartureAirport: route.origin,
             estArrivalAirport: route.destination,
           });
+          classified = true;
         }
-      } else if (inRange) {
-        // 无航线信息，根据位置和状态推断
-        if (isArrival) {
-          inferredArrivals.push(flightInfo);
-        } else if (isDeparture) {
+      }
+
+      // 2. 无航线信息或航线不经过当前机场，根据飞行状态判断
+      if (!classified) {
+        // 在机场附近地面上 -> 出发（可能正在滑行准备起飞）
+        if (isOnGround && distance < 30) {
           inferredDepartures.push({
             ...flightInfo,
             estDepartureAirport: currentAirport.icao,
           });
-        } else {
-          // 默认归类为到达（显示在列表中）
-          inferredArrivals.push(flightInfo);
+          classified = true;
         }
+        // 低空且朝向机场 -> 到达
+        else if (altitude < 3000 && headingTowards === true) {
+          inferredArrivals.push(flightInfo);
+          classified = true;
+        }
+        // 低空且背向机场 -> 出发
+        else if (altitude < 3000 && headingTowards === false) {
+          inferredDepartures.push({
+            ...flightInfo,
+            estDepartureAirport: currentAirport.icao,
+          });
+          classified = true;
+        }
+        // 朝向机场 -> 到达
+        else if (headingTowards === true) {
+          inferredArrivals.push(flightInfo);
+          classified = true;
+        }
+        // 背向机场 -> 出发
+        else if (headingTowards === false) {
+          inferredDepartures.push({
+            ...flightInfo,
+            estDepartureAirport: currentAirport.icao,
+          });
+          classified = true;
+        }
+      }
+
+      // 3. 无法判断方向时，默认归类为到达
+      if (!classified) {
+        inferredArrivals.push(flightInfo);
       }
     });
 
@@ -470,7 +519,12 @@ export function FlightProvider({ children }: FlightProviderProps) {
     setArrivals(inferredArrivals);
     setDepartures(inferredDepartures);
 
-    console.log(`[FlightContext] Inferred flights: ${inferredArrivals.length} arrivals, ${inferredDepartures.length} departures`);
+    // 验证：到达+出发=总数
+    const total = inferredArrivals.length + inferredDepartures.length;
+    if (total !== flights.length) {
+      console.warn(`[FlightContext] Classification mismatch: ${total} != ${flights.length}`);
+    }
+    console.log(`[FlightContext] Inferred flights: ${inferredArrivals.length} arrivals, ${inferredDepartures.length} departures (total: ${total}/${flights.length})`);
   }, [flights, flightRoutes, currentAirport]);
 
   // Parse track waypoint array to object
