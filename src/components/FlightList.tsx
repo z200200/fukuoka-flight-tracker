@@ -528,17 +528,14 @@ export function FlightList({ title, flights, selectedFlight, onSelect, type, cur
   // 标记需要滚动到的航班索引（当前时间最近的航班）
   const scrollToIndex = nextFlightIndex;
 
-  // Auto-scroll to show the next flight in the visible area
+  // Auto-scroll: 只在列表数据变化时滚动，确保第一个航班始终可见
+  // 不再自动滚动到中间位置，而是滚动到顶部
   useEffect(() => {
-    if (middleItemRef.current && listRef.current && sortedFlights.length > 0) {
-      const listHeight = listRef.current.clientHeight;
-      const itemTop = middleItemRef.current.offsetTop;
-      const itemHeight = middleItemRef.current.clientHeight;
-      // 滚动使标记的航班可见
-      const scrollPosition = itemTop - (listHeight / 2) + (itemHeight / 2);
-      listRef.current.scrollTop = Math.max(0, scrollPosition);
+    if (listRef.current && sortedFlights.length > 0) {
+      // 滚动到顶部，确保第一个航班可见
+      listRef.current.scrollTop = 0;
     }
-  }, [sortedFlights.length, nextFlightIndex]);
+  }, [sortedFlights.length]);
 
   // 飞机图标 SVG（用于图例）
   const planeIconSvg = (color: string, size: number = 16) => (
