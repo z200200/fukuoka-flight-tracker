@@ -223,16 +223,15 @@ const createPlaneIcon = (
   if (isSelected) {
     mainColor = '#FF6B6B';
     glowColor = 'rgba(255, 107, 107, 0.6)';
-  } else if (!isInDisplayList) {
-    mainColor = '#AAAAAA'; // 浅灰色 - 非列表航班
-    glowColor = '';
   } else if (flightType === 'arrival') {
+    // 所有到达航班显示青色（不管是否在前10名列表）
     mainColor = '#00BCD4'; // 青色 - 到达
-    glowColor = 'rgba(0, 188, 212, 0.4)';
+    glowColor = isInDisplayList ? 'rgba(0, 188, 212, 0.4)' : '';
     arrowIndicator = '▼';
   } else if (flightType === 'departure') {
+    // 所有出发航班显示橙色（不管是否在前10名列表）
     mainColor = '#FF9800'; // 橙色 - 出发
-    glowColor = 'rgba(255, 152, 0, 0.4)';
+    glowColor = isInDisplayList ? 'rgba(255, 152, 0, 0.4)' : '';
     arrowIndicator = '▲';
   } else {
     mainColor = '#666666';
