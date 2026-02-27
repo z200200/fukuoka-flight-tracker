@@ -76,7 +76,7 @@ function MapEventsHandler({
           lomin: bounds.getWest(),
           lomax: bounds.getEast(),
         };
-        console.log('[MapContainer] Bounds changed:', newBounds);
+        // console.log('[MapContainer] Bounds changed:', newBounds);
         onBoundsChange(newBounds);
       }, 1000); // Wait 1 second after user stops moving
     };
@@ -97,10 +97,107 @@ function MapEventsHandler({
 // 航班类型枚举
 type FlightType = 'arrival' | 'departure' | 'other';
 
+// IATA → ICAO 航空公司代码映射表（福冈机场常见航空公司）
+const IATA_TO_ICAO: Record<string, string> = {
+  // 日本航空公司
+  'JL': 'JAL',   // Japan Airlines
+  'NH': 'ANA',   // All Nippon Airways
+  'BC': 'SKY',   // Skymark Airlines
+  'JQ': 'JJP',   // Jetstar Japan
+  'MM': 'APJ',   // Peach Aviation
+  'GK': 'JJA',   // Jetstar Japan (old code)
+  'NU': 'JTA',   // Japan Transocean Air
+  'HD': 'ADO',   // Air Do
+  '7G': 'SFJ',   // Star Flyer
+  'FW': 'IBX',   // IBEX Airlines
+  'DJ': 'FDA',   // Fuji Dream Airlines
+
+  // 中国航空公司
+  'MU': 'CES',   // China Eastern
+  'CA': 'CCA',   // Air China
+  'CZ': 'CSN',   // China Southern
+  'HU': 'CHH',   // Hainan Airlines
+  'SC': 'CDG',   // Shandong Airlines
+  '3U': 'CSC',   // Sichuan Airlines
+  'MF': 'CXA',   // Xiamen Airlines
+  'ZH': 'CSZ',   // Shenzhen Airlines
+  '9C': 'CQH',   // Spring Airlines
+
+  // 韩国航空公司
+  'KE': 'KAL',   // Korean Air
+  'OZ': 'AAR',   // Asiana Airlines
+  'LJ': 'JNA',   // Jin Air
+  'TW': 'TWB',   // T'way Air
+  'BX': 'ABL',   // Air Busan
+  '7C': 'JJA',   // Jeju Air
+  'ZE': 'ESR',   // Eastar Jet
+  'RF': 'EOK',   // Aero K
+
+  // 台湾航空公司
+  'BR': 'EVA',   // EVA Air
+  'CI': 'CAL',   // China Airlines
+  'IT': 'TTW',   // Tigerair Taiwan
+  'AE': 'MDA',   // Mandarin Airlines
+  'B7': 'UIA',   // Uni Air
+
+  // 香港航空公司
+  'CX': 'CPA',   // Cathay Pacific
+  'HX': 'CRK',   // Hong Kong Airlines
+  'UO': 'HKE',   // HK Express
+
+  // 东南亚航空公司
+  'SQ': 'SIA',   // Singapore Airlines
+  'TG': 'THA',   // Thai Airways
+  'VN': 'HVN',   // Vietnam Airlines
+  'VJ': 'VJC',   // VietJet Air
+  'QF': 'QFA',   // Qantas
+  'PR': 'PAL',   // Philippine Airlines
+  'BI': 'RBA',   // Royal Brunei Airlines
+
+  // 欧美航空公司
+  'AA': 'AAL',   // American Airlines
+  'UA': 'UAL',   // United Airlines
+  'DL': 'DAL',   // Delta Air Lines
+  'AF': 'AFR',   // Air France
+  'BA': 'BAW',   // British Airways
+  'LH': 'DLH',   // Lufthansa
+
+  // 货运航空公司
+  'FX': 'FDX',   // FedEx
+  '5X': 'UPS',   // UPS Airlines
+};
+
 // 规范化callsign格式（去掉空格，转大写）- 用于匹配flightRoutes
 function normalizeCallsign(callsign: string | null | undefined): string | null {
   if (!callsign) return null;
   return callsign.trim().replace(/\s+/g, '').toUpperCase();
+}
+
+// 将 IATA 格式的航班号转换为 ICAO 格式
+// 例如: "JL310" → "JAL310", "NH586" → "ANA586"
+function convertIataToIcao(flightNumber: string | null | undefined): string | null {
+  if (!flightNumber) return null;
+
+  // 先规范化
+  const normalized = flightNumber.trim().replace(/\s+/g, '').toUpperCase();
+
+  // 提取航空公司代码和航班号
+  // IATA 代码格式：2个字母(如JL)，或1字母1数字(如7G)，或1数字1字母(如9C)
+  // ICAO 代码格式：3个字母(如JAL)
+  // 航班号：纯数字
+  const match = normalized.match(/^([A-Z]{2}|[A-Z]\d|\d[A-Z]|[A-Z]{3})(\d+)$/);
+  if (!match) return normalized;
+
+  const airlineCode = match[1];
+  const flightNum = match[2];
+
+  // 如果是2字符的 IATA 代码，尝试转换为 ICAO
+  if (airlineCode.length === 2 && IATA_TO_ICAO[airlineCode]) {
+    return IATA_TO_ICAO[airlineCode] + flightNum;
+  }
+
+  // 已经是 ICAO 格式（3字母）或找不到映射，返回原值
+  return normalized;
 }
 
 // Create a custom plane icon with glow effect
@@ -215,7 +312,7 @@ const createPlaneIcon = (
 };
 
 export function MapContainer() {
-  const { flights, selectedFlight, currentAirport, flightTracks, flightRoutes, arrivals, departures, scheduledCallsigns } = useFlightContext();
+  const { flights, selectedFlight, currentAirport, flightTracks, flightRoutes, arrivals, departures } = useFlightContext();
   const { t } = useLanguage();
 
   // Handle map bounds change - just log for debugging, no API calls
@@ -321,6 +418,7 @@ export function MapContainer() {
   };
 
   // 计算在显示列表中的航班 callsign 集合（ScheduledFlight 使用 flightNumber）
+  // 使用 IATA→ICAO 转换，以便与 adsb.lol 的 callsign (ICAO格式) 匹配
   const displayedArrivalCallsigns = useMemo(() => {
     // 按计划时间排序（与 FlightList 一致）
     const sorted = [...arrivals].sort((a, b) => {
@@ -332,11 +430,12 @@ export function MapContainer() {
       if (bMinutes !== null) return 1;
       return 0;
     });
-    // 返回规范化后的 flightNumber 集合
+    // 返回 ICAO 格式的 callsign 集合
     const callsigns = new Set<string>();
     sorted.slice(0, 10).forEach(f => {
-      const normalized = normalizeCallsign(f.flightNumber);
-      if (normalized) callsigns.add(normalized);
+      // 转换 IATA 格式 (JL310) → ICAO 格式 (JAL310)
+      const icaoCallsign = convertIataToIcao(f.flightNumber);
+      if (icaoCallsign) callsigns.add(icaoCallsign);
     });
     return callsigns;
   }, [arrivals]);
@@ -352,11 +451,12 @@ export function MapContainer() {
       if (bMinutes !== null) return 1;
       return 0;
     });
-    // 返回规范化后的 flightNumber 集合
+    // 返回 ICAO 格式的 callsign 集合
     const callsigns = new Set<string>();
     sorted.slice(0, 10).forEach(f => {
-      const normalized = normalizeCallsign(f.flightNumber);
-      if (normalized) callsigns.add(normalized);
+      // 转换 IATA 格式 (JL310) → ICAO 格式 (JAL310)
+      const icaoCallsign = convertIataToIcao(f.flightNumber);
+      if (icaoCallsign) callsigns.add(icaoCallsign);
     });
     return callsigns;
   }, [departures]);
@@ -372,18 +472,25 @@ export function MapContainer() {
         let inDisplayList = false;
 
         if (normalizedCallsign) {
-          // 检查是否在计划航班中
+          // 检查是否在计划航班中（使用 ICAO 格式匹配）
+          // adsb.lol 返回的 callsign 已经是 ICAO 格式 (如 JAL310)
           if (displayedArrivalCallsigns.has(normalizedCallsign)) {
             flightType = 'arrival';
             inDisplayList = true;
           } else if (displayedDepartureCallsigns.has(normalizedCallsign)) {
             flightType = 'departure';
             inDisplayList = true;
-          } else if (scheduledCallsigns.has(normalizedCallsign)) {
-            // 在计划列表中但不在显示的前20个
-            // 检查是到达还是出发
-            const isArrival = arrivals.some(f => normalizeCallsign(f.flightNumber) === normalizedCallsign);
-            flightType = isArrival ? 'arrival' : 'departure';
+          } else {
+            // 检查是否在完整的计划列表中（但不在前10显示）
+            // 需要将 AeroDataBox 的 IATA 格式转换为 ICAO 格式来匹配
+            const isInArrivals = arrivals.some(f => convertIataToIcao(f.flightNumber) === normalizedCallsign);
+            const isInDepartures = departures.some(f => convertIataToIcao(f.flightNumber) === normalizedCallsign);
+
+            if (isInArrivals) {
+              flightType = 'arrival';
+            } else if (isInDepartures) {
+              flightType = 'departure';
+            }
           }
         }
 
@@ -447,7 +554,7 @@ export function MapContainer() {
           </Marker>
         );
       }),
-    [airborneFlights, selectedFlight, flightRoutes, t, arrivals, departures, displayedArrivalCallsigns, displayedDepartureCallsigns, scheduledCallsigns]
+    [airborneFlights, selectedFlight, flightRoutes, t, arrivals, departures, displayedArrivalCallsigns, displayedDepartureCallsigns]
   );
 
   return (
