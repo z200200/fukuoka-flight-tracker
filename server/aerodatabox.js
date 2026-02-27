@@ -216,10 +216,13 @@ export async function matchFlight(callsign, airports = ['FUK', 'HND', 'NRT', 'IC
 	for (const airport of airports) {
 		let cached = scheduleCache.get(airport);
 
-		// 如果缓存为空，先获取时刻表
-		if (!cached) {
-			console.log(`[AeroDataBox] Cache miss for ${airport}, fetching schedule...`);
-			await getAirportSchedule(airport);
+		// 如果缓存为空或数据为空，获取时刻表
+		const needsFetch = !cached ||
+			(cached.data.arrivals.length === 0 && cached.data.departures.length === 0);
+
+		if (needsFetch) {
+			console.log(`[AeroDataBox] Cache miss or empty for ${airport}, fetching schedule...`);
+			await getAirportSchedule(airport, true); // 强制刷新
 			cached = scheduleCache.get(airport);
 			if (!cached) continue;
 		}
