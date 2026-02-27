@@ -4,7 +4,7 @@ services:
     runtime: node
     region: singapore
     plan: free
-    buildCommand: cd server && npm install
+    buildCommand: cd server && npm install && npx playwright install chromium --with-deps
     startCommand: cd server && npm start
     envVars:
       - key: OPENSKY_CLIENT_ID
