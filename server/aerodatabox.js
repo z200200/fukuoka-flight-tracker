@@ -112,11 +112,14 @@ export async function getAirportSchedule(airportCode, forceRefresh = false) {
 	const fromLocal = formatLocalTime(fromTime);
 	const toLocal = formatLocalTime(toTime);
 
-	// 并发获取到达和出发航班
-	const [arrivals, departures] = await Promise.all([
-		callAeroDataBox(`/flights/airports/icao/${icao}/Arrival/${fromLocal}/${toLocal}?withCancelled=false&withCodeshared=true&withCargo=false&withPrivate=false`),
-		callAeroDataBox(`/flights/airports/icao/${icao}/Departure/${fromLocal}/${toLocal}?withCancelled=false&withCodeshared=true&withCargo=false&withPrivate=false`),
-	]);
+	// 获取航班数据（一次请求同时获取到达和出发）
+	const flightData = await callAeroDataBox(
+		`/flights/airports/icao/${icao}/${fromLocal}/${toLocal}?withCancelled=false&withCodeshared=true&withCargo=false&withPrivate=false`
+	);
+
+	// API 返回 { arrivals: [...], departures: [...] }
+	const arrivals = flightData?.arrivals || [];
+	const departures = flightData?.departures || [];
 
 	// 转换数据格式
 	const result = {
@@ -146,38 +149,20 @@ function parseFlights(data, direction) {
 	}
 
 	return data.map(flight => {
-		const scheduledTime = direction === 'arrival'
-			? flight.arrival?.scheduledTime?.local
-			: flight.departure?.scheduledTime?.local;
-
-		const actualTime = direction === 'arrival'
-			? flight.arrival?.actualTime?.local || flight.arrival?.estimatedTime?.local
-			: flight.departure?.actualTime?.local || flight.departure?.estimatedTime?.local;
-
-		const terminal = direction === 'arrival'
-			? flight.arrival?.terminal
-			: flight.departure?.terminal;
-
-		const gate = direction === 'arrival'
-			? flight.arrival?.gate
-			: flight.departure?.gate;
+		// AeroDataBox API 返回的数据结构
+		// movement 包含到达/出发机场和时间信息
+		const movement = flight.movement || {};
+		const scheduledTime = movement.scheduledTime?.local;
+		const actualTime = movement.actualTime?.local || movement.revisedTime?.local;
+		const terminal = movement.terminal;
+		const gate = movement.gate;
 
 		// 获取航班状态
-		let status = null;
-		if (flight.status) {
-			status = flight.status;
-		} else if (actualTime && scheduledTime) {
-			const scheduled = new Date(scheduledTime).getTime();
-			const actual = new Date(actualTime).getTime();
-			const diff = (actual - scheduled) / 60000; // 分钟
-			if (diff > 15) {
-				status = 'Delayed';
-			} else if (diff < -5) {
-				status = 'Early';
-			} else {
-				status = 'On Time';
-			}
-		}
+		let status = flight.status || null;
+
+		// 对于到达航班，movement.airport 是出发机场
+		// 对于出发航班，movement.airport 是目的机场
+		const otherAirport = movement.airport || {};
 
 		return {
 			flightNumber: flight.number,
@@ -186,12 +171,12 @@ function parseFlights(data, direction) {
 			airlineCode: flight.airline?.iata || null,
 			// 起点/终点
 			origin: direction === 'arrival' ? {
-				iata: flight.departure?.airport?.iata,
-				name: flight.departure?.airport?.name,
+				iata: otherAirport.iata,
+				name: otherAirport.name,
 			} : null,
 			destination: direction === 'departure' ? {
-				iata: flight.arrival?.airport?.iata,
-				name: flight.arrival?.airport?.name,
+				iata: otherAirport.iata,
+				name: otherAirport.name,
 			} : null,
 			// 时间
 			scheduledTime: scheduledTime ? formatDisplayTime(scheduledTime) : null,
