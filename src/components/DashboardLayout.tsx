@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import styled from 'styled-components';
 import { MapContainer } from './MapContainer';
 import { FlightListsContainer } from './FlightListsContainer';
@@ -8,13 +8,10 @@ import { useLanguage } from '../context/LanguageContext';
 import { useWindowSize } from '../hooks/useWindowSize';
 import { AIRPORTS, type AirportId } from '../config/airports';
 
-const REFRESH_INTERVAL = 10; // 10秒刷新间隔
-
 export function DashboardLayout() {
   const { width } = useWindowSize();
-  const { loading, error, lastUpdate, refreshData, currentAirportId, setCurrentAirport, flights } = useFlightContext();
+  const { loading, error, lastUpdate, refreshData, currentAirportId, setCurrentAirport, flights, nextUpdateSeconds, nextRescanSeconds } = useFlightContext();
   const { lang, setLang, t } = useLanguage();
-  const [countdown, setCountdown] = useState(REFRESH_INTERVAL);
   const [showHelp, setShowHelp] = useState(true);
   const [showMobileMenu, setShowMobileMenu] = useState(false);
 
@@ -25,19 +22,6 @@ export function DashboardLayout() {
   const isMobile = width < 768;
 
   const airportTabs = Object.values(AIRPORTS);
-
-  // 倒计时逻辑
-  useEffect(() => {
-    // 当lastUpdate变化时，重置倒计时
-    setCountdown(REFRESH_INTERVAL);
-  }, [lastUpdate]);
-
-  useEffect(() => {
-    const timer = setInterval(() => {
-      setCountdown(prev => (prev > 0 ? prev - 1 : REFRESH_INTERVAL));
-    }, 1000);
-    return () => clearInterval(timer);
-  }, []);
 
   if (isMobile) {
     return (
@@ -128,13 +112,16 @@ export function DashboardLayout() {
         </HeaderLeft>
         <HeaderRight>
           <HeaderInfo>
-            {lastUpdate && (
-              <UpdateTime>{t.update}: {lastUpdate.toLocaleTimeString()}</UpdateTime>
-            )}
-            <CountdownWrapper>
-              <CountdownBar style={{ width: `${(countdown / REFRESH_INTERVAL) * 100}%` }} />
-              <CountdownText>{countdown}s</CountdownText>
-            </CountdownWrapper>
+            <CountdownGroup>
+              <CountdownItem>
+                <CountdownLabel>位置</CountdownLabel>
+                <CountdownValue>{nextUpdateSeconds}s</CountdownValue>
+              </CountdownItem>
+              <CountdownItem>
+                <CountdownLabel>扫描</CountdownLabel>
+                <CountdownValue>{Math.floor(nextRescanSeconds / 60)}:{(nextRescanSeconds % 60).toString().padStart(2, '0')}</CountdownValue>
+              </CountdownItem>
+            </CountdownGroup>
           </HeaderInfo>
           <LanguageSwitch>
             <LangButton active={lang === 'zh'} isLarge onClick={() => setLang('zh')}>中文</LangButton>
@@ -247,37 +234,33 @@ const UpdateTime = styled.div`
   font-family: 'Consolas', 'Monaco', monospace;
 `;
 
-const CountdownWrapper = styled.div`
-  position: relative;
-  width: 120px;
-  height: 28px;
+const CountdownGroup = styled.div`
+  display: flex;
+  gap: 12px;
+`;
+
+const CountdownItem = styled.div`
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 4px 12px;
   background: rgba(0, 255, 255, 0.08);
   border: 1px solid rgba(0, 255, 255, 0.3);
   border-radius: 4px;
-  overflow: hidden;
 `;
 
-const CountdownBar = styled.div`
-  position: absolute;
-  top: 0;
-  left: 0;
-  height: 100%;
-  background: linear-gradient(90deg, rgba(0, 255, 255, 0.2) 0%, rgba(0, 255, 255, 0.5) 100%);
-  transition: width 1s linear;
-  box-shadow: 0 0 10px rgba(0, 255, 255, 0.3);
+const CountdownLabel = styled.div`
+  font-size: 10px;
+  color: rgba(0, 255, 255, 0.6);
+  font-family: 'Consolas', 'Monaco', monospace;
 `;
 
-const CountdownText = styled.div`
-  position: absolute;
-  top: 50%;
-  left: 50%;
-  transform: translate(-50%, -50%);
-  font-size: 12px;
+const CountdownValue = styled.div`
+  font-size: 14px;
   font-weight: 600;
   color: #00ffff;
   font-family: 'Consolas', 'Monaco', monospace;
   text-shadow: 0 0 8px rgba(0, 255, 255, 0.6);
-  letter-spacing: 1px;
 `;
 
 const RefreshButton = styled.button`

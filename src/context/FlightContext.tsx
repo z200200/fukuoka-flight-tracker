@@ -36,6 +36,9 @@ interface FlightContextType {
   mapBounds: MapBounds | null;
   setMapBounds: (bounds: MapBounds) => void;
   fetchFlightsInBounds: (bounds: MapBounds) => Promise<void>;
+  // 倒计时
+  nextUpdateSeconds: number;   // 下次位置更新倒计时
+  nextRescanSeconds: number;   // 下次重新扫描倒计时
 }
 
 const FlightContext = createContext<FlightContextType | undefined>(undefined);
@@ -254,115 +257,172 @@ export function FlightProvider({ children }: FlightProviderProps) {
     return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
   }, []);
 
-  // 使用 adsb.lol 获取飞机位置（无速率限制，支持自动刷新）
-  useEffect(() => {
-    const fetchStates = async () => {
-      // 页面不可见时跳过请求
-      if (document.hidden) {
-        console.log('[FlightContext] Page hidden, skipping fetch');
-        return;
-      }
+  // 已锁定的飞机 ICAO 列表（用于位置更新）
+  const lockedIcaosRef = useRef<Set<string>>(new Set());
+  const lastScanTimeRef = useRef<number>(Date.now());
+  const lastUpdateTimeRef = useRef<number>(Date.now());
+  const RESCAN_INTERVAL = 2 * 60 * 1000; // 2分钟重新扫描
+  const UPDATE_INTERVAL = 10 * 1000; // 10秒更新位置
 
-      try {
-        console.log(`[FlightContext] Fetching aircraft from adsb.lol for ${currentAirport.name}...`);
+  // 倒计时状态
+  const [nextUpdateSeconds, setNextUpdateSeconds] = useState(10);
+  const [nextRescanSeconds, setNextRescanSeconds] = useState(120);
 
-        // 优先使用 adsb.lol（无速率限制）
-        const adsbResponse = await fetchAircraftAdsbLol(
-          currentAirport.latitude,
-          currentAirport.longitude,
-          Math.round(currentAirport.radiusKm * 0.54) // km to nautical miles
-        );
+  // 扫描飞机列表（初次加载或重新扫描时调用）
+  const scanAircraft = useCallback(async () => {
+    if (document.hidden) return;
 
-        if (adsbResponse?.states && Array.isArray(adsbResponse.states)) {
-          // adsb.lol 返回的是已经解析好的对象格式
-          const states = adsbResponse.states as unknown as Array<{
-            icao24: string;
-            callsign: string;
-            latitude: number | null;
-            longitude: number | null;
-            baro_altitude: number | null;
-            velocity: number | null;
-            true_track: number | null;
-            on_ground: boolean;
-            origin_country: string;
-          }>;
-          const flightData = states
-            .filter((state) => state.latitude !== null && state.longitude !== null)
-            .filter((state) => !state.on_ground) // 只显示空中的飞机
-            .map((state) => ({
-              icao24: state.icao24,
-              callsign: state.callsign?.trim() || null,
-              latitude: state.latitude as number,
-              longitude: state.longitude as number,
-              altitude: state.baro_altitude,
-              velocity: state.velocity,
-              heading: state.true_track,
-              onGround: state.on_ground,
-              originCountry: state.origin_country,
-              lastContact: Math.floor(Date.now() / 1000),
-              departureAirport: null,
-              arrivalAirport: null,
-            }));
-          // 数据保护：防止API不稳定导致数量大幅波动
-          setFlights(prev => {
-            // 如果新数据为空，保留旧数据
-            if (flightData.length === 0) {
-              console.warn(`[FlightContext] adsb.lol returned 0 aircraft, keeping previous data (${prev.length})`);
-              return prev;
-            }
-            // 如果新数据比旧数据少超过50%，可能是API故障，保留旧数据
-            if (prev.length > 0 && flightData.length < prev.length * 0.5) {
-              console.warn(`[FlightContext] adsb.lol: suspicious drop ${prev.length} -> ${flightData.length}, keeping previous data`);
-              return prev;
-            }
-            console.log(`[FlightContext] adsb.lol: ${flightData.length} aircraft for ${currentAirport.name}`);
-            return flightData;
-          });
-        } else {
-          // 回退到 OpenSky
-          console.log(`[FlightContext] adsb.lol failed, falling back to OpenSky...`);
-          const statesResponse = await fetchStatesAroundAirport(
-            currentAirport.latitude,
-            currentAirport.longitude,
-            currentAirport.radiusKm
-          );
+    try {
+      console.log(`[FlightContext] Scanning aircraft for ${currentAirport.name}...`);
 
-          if (statesResponse?.states) {
-            const flightData = (statesResponse.states as unknown as unknown[][])
-              .map(parseStateArray)
-              .filter((state) => state.latitude !== null && state.longitude !== null)
-              .filter((state) => !state.on_ground) // 只显示空中的飞机
-              .map(convertStateVectorToFlight);
-            // 数据保护：防止API不稳定导致数量大幅波动
-            setFlights(prev => {
-              if (flightData.length === 0) {
-                console.warn(`[FlightContext] OpenSky returned 0 aircraft, keeping previous data (${prev.length})`);
-                return prev;
-              }
-              if (prev.length > 0 && flightData.length < prev.length * 0.5) {
-                console.warn(`[FlightContext] OpenSky: suspicious drop ${prev.length} -> ${flightData.length}, keeping previous data`);
-                return prev;
-              }
-              console.log(`[FlightContext] OpenSky: ${flightData.length} aircraft for ${currentAirport.name}`);
-              return flightData;
-            });
-          } else {
-            console.warn(`[FlightContext] No data from OpenSky, keeping previous data`);
-          }
+      const adsbResponse = await fetchAircraftAdsbLol(
+        currentAirport.latitude,
+        currentAirport.longitude,
+        Math.round(currentAirport.radiusKm * 0.54)
+      );
+
+      if (adsbResponse?.states && Array.isArray(adsbResponse.states)) {
+        const states = adsbResponse.states as unknown as Array<{
+          icao24: string;
+          callsign: string;
+          latitude: number | null;
+          longitude: number | null;
+          baro_altitude: number | null;
+          velocity: number | null;
+          true_track: number | null;
+          on_ground: boolean;
+          origin_country: string;
+        }>;
+        const flightData = states
+          .filter((state) => state.latitude !== null && state.longitude !== null)
+          .filter((state) => !state.on_ground)
+          .map((state) => ({
+            icao24: state.icao24,
+            callsign: state.callsign?.trim() || null,
+            latitude: state.latitude as number,
+            longitude: state.longitude as number,
+            altitude: state.baro_altitude,
+            velocity: state.velocity,
+            heading: state.true_track,
+            onGround: state.on_ground,
+            originCountry: state.origin_country,
+            lastContact: Math.floor(Date.now() / 1000),
+            departureAirport: null,
+            arrivalAirport: null,
+          }));
+
+        if (flightData.length > 0) {
+          // 锁定这批飞机的 ICAO
+          lockedIcaosRef.current = new Set(flightData.map(f => f.icao24));
+          lastScanTimeRef.current = Date.now();
+          setFlights(flightData);
+          console.log(`[FlightContext] Scanned & locked ${flightData.length} aircraft for ${currentAirport.name}`);
         }
-
-        setLastUpdate(new Date());
-      } catch (err) {
-        console.error('[FlightContext] Failed to fetch aircraft states:', err);
       }
-    };
+      setLastUpdate(new Date());
+    } catch (err) {
+      console.error('[FlightContext] Failed to scan aircraft:', err);
+    }
+  }, [currentAirport, fetchAircraftAdsbLol]);
 
-    fetchStates(); // 初始获取
+  // 更新已锁定飞机的位置（不改变飞机数量）
+  const updatePositions = useCallback(async () => {
+    if (document.hidden || lockedIcaosRef.current.size === 0) return;
 
-    // 自动刷新（每10秒，页面可见时）
-    const interval = setInterval(fetchStates, 10000);
+    try {
+      const adsbResponse = await fetchAircraftAdsbLol(
+        currentAirport.latitude,
+        currentAirport.longitude,
+        Math.round(currentAirport.radiusKm * 0.54)
+      );
+
+      if (adsbResponse?.states && Array.isArray(adsbResponse.states)) {
+        const states = adsbResponse.states as unknown as Array<{
+          icao24: string;
+          callsign: string;
+          latitude: number | null;
+          longitude: number | null;
+          baro_altitude: number | null;
+          velocity: number | null;
+          true_track: number | null;
+          on_ground: boolean;
+          origin_country: string;
+        }>;
+
+        // 只更新已锁定的飞机
+        const newPositions = new Map<string, typeof states[0]>();
+        states.forEach(s => {
+          if (lockedIcaosRef.current.has(s.icao24)) {
+            newPositions.set(s.icao24, s);
+          }
+        });
+
+        setFlights(prev => {
+          return prev.map(flight => {
+            const updated = newPositions.get(flight.icao24);
+            if (updated && updated.latitude !== null && updated.longitude !== null) {
+              return {
+                ...flight,
+                latitude: updated.latitude,
+                longitude: updated.longitude,
+                altitude: updated.baro_altitude,
+                velocity: updated.velocity,
+                heading: updated.true_track,
+                callsign: updated.callsign?.trim() || flight.callsign,
+                lastContact: Math.floor(Date.now() / 1000),
+              };
+            }
+            return flight; // 保留旧位置（飞机暂时没信号）
+          });
+        });
+
+        console.log(`[FlightContext] Updated positions for ${newPositions.size}/${lockedIcaosRef.current.size} aircraft`);
+      }
+      setLastUpdate(new Date());
+    } catch (err) {
+      console.error('[FlightContext] Failed to update positions:', err);
+    }
+  }, [currentAirport, fetchAircraftAdsbLol]);
+
+  // 初次加载：扫描飞机
+  useEffect(() => {
+    scanAircraft();
+  }, [scanAircraft]);
+
+  // 定时任务：每10秒更新位置，每2分钟重新扫描
+  useEffect(() => {
+    const interval = setInterval(() => {
+      if (document.hidden) return;
+
+      const now = Date.now();
+      if (now - lastScanTimeRef.current >= RESCAN_INTERVAL) {
+        // 每2分钟重新扫描
+        scanAircraft();
+        lastScanTimeRef.current = now;
+        lastUpdateTimeRef.current = now;
+      } else {
+        // 每10秒更新位置
+        updatePositions();
+        lastUpdateTimeRef.current = now;
+      }
+    }, 10000);
+
     return () => clearInterval(interval);
-  }, [currentAirport, fetchAircraftAdsbLol, fetchStatesAroundAirport, parseStateArray, convertStateVectorToFlight, isPageVisible]);
+  }, [scanAircraft, updatePositions, isPageVisible]);
+
+  // 倒计时更新（每秒）
+  useEffect(() => {
+    const countdownInterval = setInterval(() => {
+      const now = Date.now();
+      const updateElapsed = now - lastUpdateTimeRef.current;
+      const scanElapsed = now - lastScanTimeRef.current;
+
+      setNextUpdateSeconds(Math.max(0, Math.ceil((UPDATE_INTERVAL - updateElapsed) / 1000)));
+      setNextRescanSeconds(Math.max(0, Math.ceil((RESCAN_INTERVAL - scanElapsed) / 1000)));
+    }, 1000);
+
+    return () => clearInterval(countdownInterval);
+  }, []);
 
   // 从实时飞机数据推断到达/出发航班
   // 核心逻辑：每架飞机必须被分类，且只分类一次
@@ -695,6 +755,8 @@ export function FlightProvider({ children }: FlightProviderProps) {
     mapBounds,
     setMapBounds,
     fetchFlightsInBounds,
+    nextUpdateSeconds,
+    nextRescanSeconds,
   };
 
   return <FlightContext.Provider value={value}>{children}</FlightContext.Provider>;
