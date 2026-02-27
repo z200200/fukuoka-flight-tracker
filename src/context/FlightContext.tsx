@@ -390,10 +390,16 @@ export function FlightProvider({ children }: FlightProviderProps) {
     scanAircraft();
   }, [scanAircraft]);
 
-  // 定时任务：每10秒更新位置，每2分钟重新扫描
+  // 定时任务：飞机列表加载完成后才开始轨迹更新
   useEffect(() => {
     const interval = setInterval(() => {
       if (document.hidden) return;
+
+      // 飞机列表还没加载完成，不执行更新
+      if (lockedIcaosRef.current.size === 0) {
+        console.log('[FlightContext] Waiting for initial scan to complete...');
+        return;
+      }
 
       const now = Date.now();
       if (now - lastScanTimeRef.current >= RESCAN_INTERVAL) {
@@ -402,11 +408,11 @@ export function FlightProvider({ children }: FlightProviderProps) {
         lastScanTimeRef.current = now;
         lastUpdateTimeRef.current = now;
       } else {
-        // 每10秒更新位置
+        // 每3秒更新位置
         updatePositions();
         lastUpdateTimeRef.current = now;
       }
-    }, 3000);
+    }, UPDATE_INTERVAL);
 
     return () => clearInterval(interval);
   }, [scanAircraft, updatePositions, isPageVisible]);
@@ -605,8 +611,8 @@ export function FlightProvider({ children }: FlightProviderProps) {
   // 使用 adsb.lol 缓存的航迹（服务器自动收集）
   useEffect(() => {
     const fetchAllTracks = async () => {
-      // 页面不可见或无飞机时跳过
-      if (document.hidden || flights.length === 0) return;
+      // 页面不可见或飞机列表未加载完成时跳过
+      if (document.hidden || lockedIcaosRef.current.size === 0) return;
 
       try {
         // 从服务器获取所有缓存的航迹
