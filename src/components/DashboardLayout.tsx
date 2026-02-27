@@ -116,7 +116,7 @@ export function DashboardLayout() {
               <CountdownItem>
                 <CountdownLabel>轨迹更新</CountdownLabel>
                 <CountdownBarWrapper>
-                  <CountdownBar style={{ width: `${(nextUpdateSeconds / 10) * 100}%` }} />
+                  <CountdownBar style={{ width: `${(nextUpdateSeconds / 3) * 100}%` }} />
                 </CountdownBarWrapper>
               </CountdownItem>
               <CountdownItem>

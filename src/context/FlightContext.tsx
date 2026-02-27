@@ -262,10 +262,10 @@ export function FlightProvider({ children }: FlightProviderProps) {
   const lastScanTimeRef = useRef<number>(Date.now());
   const lastUpdateTimeRef = useRef<number>(Date.now());
   const RESCAN_INTERVAL = 2 * 60 * 1000; // 2分钟重新扫描
-  const UPDATE_INTERVAL = 10 * 1000; // 10秒更新位置
+  const UPDATE_INTERVAL = 3 * 1000; // 3秒更新轨迹
 
   // 倒计时状态
-  const [nextUpdateSeconds, setNextUpdateSeconds] = useState(10);
+  const [nextUpdateSeconds, setNextUpdateSeconds] = useState(3);
   const [nextRescanSeconds, setNextRescanSeconds] = useState(120);
 
   // 扫描飞机列表（初次加载或重新扫描时调用）
@@ -405,7 +405,7 @@ export function FlightProvider({ children }: FlightProviderProps) {
         updatePositions();
         lastUpdateTimeRef.current = now;
       }
-    }, 10000);
+    }, 3000);
 
     return () => clearInterval(interval);
   }, [scanAircraft, updatePositions, isPageVisible]);
