@@ -123,7 +123,7 @@ export function FlightProvider({ children }: FlightProviderProps) {
       const adsbResponse = await fetchAircraftAdsbLol(
         currentAirport.latitude,
         currentAirport.longitude,
-        Math.round(currentAirport.radiusKm * 0.54)
+        Math.round(currentAirport.radiusKm * 1.2)
       );
 
       if (adsbResponse?.states && Array.isArray(adsbResponse.states)) {
@@ -209,7 +209,7 @@ export function FlightProvider({ children }: FlightProviderProps) {
       const adsbResponse = await fetchAircraftAdsbLol(
         currentAirport.latitude,
         currentAirport.longitude,
-        Math.round(currentAirport.radiusKm * 0.54)
+        Math.round(currentAirport.radiusKm * 1.2)
       );
 
       if (adsbResponse?.states && Array.isArray(adsbResponse.states)) {
@@ -264,7 +264,7 @@ export function FlightProvider({ children }: FlightProviderProps) {
       const adsbResponse = await fetchAircraftAdsbLol(
         currentAirport.latitude,
         currentAirport.longitude,
-        Math.round(currentAirport.radiusKm * 0.54)
+        Math.round(currentAirport.radiusKm * 1.2)
       );
 
       if (adsbResponse?.states && Array.isArray(adsbResponse.states)) {
