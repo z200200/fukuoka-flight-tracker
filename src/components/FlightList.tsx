@@ -11,6 +11,141 @@ const SCALE_STEP = 0.1;
 
 // 航空公司代码多语言映射
 type Language = 'zh' | 'ja' | 'en';
+
+// 机场IATA代码 -> 国家名称映射（多语言）
+const COUNTRY_BY_AIRPORT: Record<Language, Record<string, string>> = {
+  zh: {
+    // 日本
+    'FUK': '日本', 'HND': '日本', 'NRT': '日本', 'KIX': '日本', 'ITM': '日本',
+    'NGO': '日本', 'CTS': '日本', 'OKA': '日本', 'KOJ': '日本', 'KMQ': '日本',
+    'SDJ': '日本', 'HIJ': '日本', 'MYJ': '日本', 'TAK': '日本', 'KMI': '日本',
+    'NGS': '日本', 'OIT': '日本', 'KKJ': '日本', 'FKS': '日本', 'KCZ': '日本',
+    // 韩国
+    'ICN': '韩国', 'GMP': '韩国', 'PUS': '韩国', 'CJU': '韩国', 'TAE': '韩国',
+    'KWJ': '韩国', 'RSU': '韩国', 'USN': '韩国', 'MWX': '韩国', 'YNY': '韩国',
+    // 中国大陆
+    'PEK': '中国', 'PKX': '中国', 'PVG': '中国', 'SHA': '中国', 'CAN': '中国',
+    'SZX': '中国', 'CTU': '中国', 'XIY': '中国', 'WUH': '中国', 'NKG': '中国',
+    'HGH': '中国', 'TSN': '中国', 'SHE': '中国', 'DLC': '中国', 'TAO': '中国',
+    'CGO': '中国', 'CSX': '中国', 'XMN': '中国', 'FOC': '中国', 'KMG': '中国',
+    'NNG': '中国', 'HAK': '中国', 'SYX': '中国', 'CGQ': '中国', 'HRB': '中国',
+    // 港澳台
+    'HKG': '香港', 'MFM': '澳门', 'TPE': '台湾', 'TSA': '台湾', 'KHH': '台湾', 'RMQ': '台湾',
+    // 东南亚
+    'SIN': '新加坡', 'BKK': '泰国', 'DMK': '泰国', 'CNX': '泰国', 'HKT': '泰国',
+    'KUL': '马来西亚', 'PEN': '马来西亚', 'LGK': '马来西亚', 'JHB': '马来西亚',
+    'SGN': '越南', 'HAN': '越南', 'DAD': '越南', 'CXR': '越南',
+    'MNL': '菲律宾', 'CEB': '菲律宾',
+    'CGK': '印尼', 'DPS': '印尼',
+    'RGN': '缅甸', 'PNH': '柬埔寨', 'VTE': '老挝',
+    // 南亚
+    'DEL': '印度', 'BOM': '印度', 'BLR': '印度', 'MAA': '印度', 'CCU': '印度',
+    'CMB': '斯里兰卡', 'MLE': '马尔代夫', 'DAC': '孟加拉',
+    // 中东
+    'DXB': '阿联酋', 'AUH': '阿联酋', 'DOH': '卡塔尔', 'IST': '土耳其',
+    // 欧洲
+    'LHR': '英国', 'CDG': '法国', 'FRA': '德国', 'MUC': '德国', 'AMS': '荷兰',
+    'FCO': '意大利', 'MXP': '意大利', 'MAD': '西班牙', 'BCN': '西班牙',
+    'ZRH': '瑞士', 'VIE': '奥地利', 'HEL': '芬兰', 'SVO': '俄罗斯',
+    // 北美
+    'LAX': '美国', 'SFO': '美国', 'JFK': '美国', 'ORD': '美国', 'SEA': '美国',
+    'DFW': '美国', 'ATL': '美国', 'IAD': '美国', 'HNL': '美国',
+    'YVR': '加拿大', 'YYZ': '加拿大',
+    // 大洋洲
+    'SYD': '澳大利亚', 'MEL': '澳大利亚', 'BNE': '澳大利亚', 'PER': '澳大利亚',
+    'AKL': '新西兰', 'GUM': '关岛', 'SPN': '塞班',
+  },
+  ja: {
+    // 日本
+    'FUK': '日本', 'HND': '日本', 'NRT': '日本', 'KIX': '日本', 'ITM': '日本',
+    'NGO': '日本', 'CTS': '日本', 'OKA': '日本', 'KOJ': '日本', 'KMQ': '日本',
+    'SDJ': '日本', 'HIJ': '日本', 'MYJ': '日本', 'TAK': '日本', 'KMI': '日本',
+    'NGS': '日本', 'OIT': '日本', 'KKJ': '日本', 'FKS': '日本', 'KCZ': '日本',
+    // 韓国
+    'ICN': '韓国', 'GMP': '韓国', 'PUS': '韓国', 'CJU': '韓国', 'TAE': '韓国',
+    'KWJ': '韓国', 'RSU': '韓国', 'USN': '韓国', 'MWX': '韓国', 'YNY': '韓国',
+    // 中国本土
+    'PEK': '中国', 'PKX': '中国', 'PVG': '中国', 'SHA': '中国', 'CAN': '中国',
+    'SZX': '中国', 'CTU': '中国', 'XIY': '中国', 'WUH': '中国', 'NKG': '中国',
+    'HGH': '中国', 'TSN': '中国', 'SHE': '中国', 'DLC': '中国', 'TAO': '中国',
+    'CGO': '中国', 'CSX': '中国', 'XMN': '中国', 'FOC': '中国', 'KMG': '中国',
+    'NNG': '中国', 'HAK': '中国', 'SYX': '中国', 'CGQ': '中国', 'HRB': '中国',
+    // 港澳台
+    'HKG': '香港', 'MFM': 'マカオ', 'TPE': '台湾', 'TSA': '台湾', 'KHH': '台湾', 'RMQ': '台湾',
+    // 東南アジア
+    'SIN': 'シンガポール', 'BKK': 'タイ', 'DMK': 'タイ', 'CNX': 'タイ', 'HKT': 'タイ',
+    'KUL': 'マレーシア', 'PEN': 'マレーシア', 'LGK': 'マレーシア', 'JHB': 'マレーシア',
+    'SGN': 'ベトナム', 'HAN': 'ベトナム', 'DAD': 'ベトナム', 'CXR': 'ベトナム',
+    'MNL': 'フィリピン', 'CEB': 'フィリピン',
+    'CGK': 'インドネシア', 'DPS': 'インドネシア',
+    'RGN': 'ミャンマー', 'PNH': 'カンボジア', 'VTE': 'ラオス',
+    // 南アジア
+    'DEL': 'インド', 'BOM': 'インド', 'BLR': 'インド', 'MAA': 'インド', 'CCU': 'インド',
+    'CMB': 'スリランカ', 'MLE': 'モルディブ', 'DAC': 'バングラデシュ',
+    // 中東
+    'DXB': 'UAE', 'AUH': 'UAE', 'DOH': 'カタール', 'IST': 'トルコ',
+    // ヨーロッパ
+    'LHR': '英国', 'CDG': 'フランス', 'FRA': 'ドイツ', 'MUC': 'ドイツ', 'AMS': 'オランダ',
+    'FCO': 'イタリア', 'MXP': 'イタリア', 'MAD': 'スペイン', 'BCN': 'スペイン',
+    'ZRH': 'スイス', 'VIE': 'オーストリア', 'HEL': 'フィンランド', 'SVO': 'ロシア',
+    // 北米
+    'LAX': 'アメリカ', 'SFO': 'アメリカ', 'JFK': 'アメリカ', 'ORD': 'アメリカ', 'SEA': 'アメリカ',
+    'DFW': 'アメリカ', 'ATL': 'アメリカ', 'IAD': 'アメリカ', 'HNL': 'アメリカ',
+    'YVR': 'カナダ', 'YYZ': 'カナダ',
+    // オセアニア
+    'SYD': 'オーストラリア', 'MEL': 'オーストラリア', 'BNE': 'オーストラリア', 'PER': 'オーストラリア',
+    'AKL': 'ニュージーランド', 'GUM': 'グアム', 'SPN': 'サイパン',
+  },
+  en: {
+    // Japan
+    'FUK': 'Japan', 'HND': 'Japan', 'NRT': 'Japan', 'KIX': 'Japan', 'ITM': 'Japan',
+    'NGO': 'Japan', 'CTS': 'Japan', 'OKA': 'Japan', 'KOJ': 'Japan', 'KMQ': 'Japan',
+    'SDJ': 'Japan', 'HIJ': 'Japan', 'MYJ': 'Japan', 'TAK': 'Japan', 'KMI': 'Japan',
+    'NGS': 'Japan', 'OIT': 'Japan', 'KKJ': 'Japan', 'FKS': 'Japan', 'KCZ': 'Japan',
+    // Korea
+    'ICN': 'Korea', 'GMP': 'Korea', 'PUS': 'Korea', 'CJU': 'Korea', 'TAE': 'Korea',
+    'KWJ': 'Korea', 'RSU': 'Korea', 'USN': 'Korea', 'MWX': 'Korea', 'YNY': 'Korea',
+    // China
+    'PEK': 'China', 'PKX': 'China', 'PVG': 'China', 'SHA': 'China', 'CAN': 'China',
+    'SZX': 'China', 'CTU': 'China', 'XIY': 'China', 'WUH': 'China', 'NKG': 'China',
+    'HGH': 'China', 'TSN': 'China', 'SHE': 'China', 'DLC': 'China', 'TAO': 'China',
+    'CGO': 'China', 'CSX': 'China', 'XMN': 'China', 'FOC': 'China', 'KMG': 'China',
+    'NNG': 'China', 'HAK': 'China', 'SYX': 'China', 'CGQ': 'China', 'HRB': 'China',
+    // HK/Macau/Taiwan
+    'HKG': 'Hong Kong', 'MFM': 'Macau', 'TPE': 'Taiwan', 'TSA': 'Taiwan', 'KHH': 'Taiwan', 'RMQ': 'Taiwan',
+    // Southeast Asia
+    'SIN': 'Singapore', 'BKK': 'Thailand', 'DMK': 'Thailand', 'CNX': 'Thailand', 'HKT': 'Thailand',
+    'KUL': 'Malaysia', 'PEN': 'Malaysia', 'LGK': 'Malaysia', 'JHB': 'Malaysia',
+    'SGN': 'Vietnam', 'HAN': 'Vietnam', 'DAD': 'Vietnam', 'CXR': 'Vietnam',
+    'MNL': 'Philippines', 'CEB': 'Philippines',
+    'CGK': 'Indonesia', 'DPS': 'Indonesia',
+    'RGN': 'Myanmar', 'PNH': 'Cambodia', 'VTE': 'Laos',
+    // South Asia
+    'DEL': 'India', 'BOM': 'India', 'BLR': 'India', 'MAA': 'India', 'CCU': 'India',
+    'CMB': 'Sri Lanka', 'MLE': 'Maldives', 'DAC': 'Bangladesh',
+    // Middle East
+    'DXB': 'UAE', 'AUH': 'UAE', 'DOH': 'Qatar', 'IST': 'Turkey',
+    // Europe
+    'LHR': 'UK', 'CDG': 'France', 'FRA': 'Germany', 'MUC': 'Germany', 'AMS': 'Netherlands',
+    'FCO': 'Italy', 'MXP': 'Italy', 'MAD': 'Spain', 'BCN': 'Spain',
+    'ZRH': 'Switzerland', 'VIE': 'Austria', 'HEL': 'Finland', 'SVO': 'Russia',
+    // North America
+    'LAX': 'USA', 'SFO': 'USA', 'JFK': 'USA', 'ORD': 'USA', 'SEA': 'USA',
+    'DFW': 'USA', 'ATL': 'USA', 'IAD': 'USA', 'HNL': 'USA',
+    'YVR': 'Canada', 'YYZ': 'Canada',
+    // Oceania
+    'SYD': 'Australia', 'MEL': 'Australia', 'BNE': 'Australia', 'PER': 'Australia',
+    'AKL': 'New Zealand', 'GUM': 'Guam', 'SPN': 'Saipan',
+  },
+};
+
+// 根据机场IATA代码获取国家名称
+function getCountryByAirport(iata: string | undefined, lang: Language): string {
+  if (!iata) return '';
+  const code = iata.toUpperCase();
+  return COUNTRY_BY_AIRPORT[lang][code] || COUNTRY_BY_AIRPORT.en[code] || '';
+}
+
 const AIRLINES: Record<Language, Record<string, string>> = {
   zh: {
     // 日本
@@ -169,69 +304,93 @@ export function FlightList({ title, flights, selectedFlight, onSelect, type, cur
     return null;
   };
 
-  // 按计划时间排序（时刻表数据已经包含时间）
+  // 获取当前日本时间的分钟数
+  const getCurrentMinutes = useCallback(() => {
+    const now = new Date();
+    const japanOffset = 9 * 60; // UTC+9
+    const utcMinutes = now.getUTCHours() * 60 + now.getUTCMinutes();
+    return (utcMinutes + japanOffset) % (24 * 60);
+  }, []);
+
+  // 按计划时间排序，当前时间附近的航班排在第3位（索引2）
   const sortedFlights = useMemo(() => {
     if (!flights || flights.length === 0) return [];
-    return [...flights]
+
+    const currentMinutes = getCurrentMinutes();
+
+    // 先过滤和排序所有航班
+    const allFlights = [...flights]
       .filter(f => f != null && f.flightNumber)
-      // 过滤无效的flightNumber（排除@等特殊字符）
       .filter(f => {
         const fn = f.flightNumber || '';
         return isValidCallsign(fn);
       })
       .sort((a, b) => {
-        // 直接使用时刻表的计划时间排序
         const aScheduledMinutes = parseTimeToMinutes(a.scheduledTime);
         const bScheduledMinutes = parseTimeToMinutes(b.scheduledTime);
 
-        // 如果两者都有计划时间，按计划时间升序排序（早的在前）
         if (aScheduledMinutes !== null && bScheduledMinutes !== null) {
           return aScheduledMinutes - bScheduledMinutes;
         }
 
-        // 有计划时间的排在前面
         if (aScheduledMinutes !== null && bScheduledMinutes === null) return -1;
         if (aScheduledMinutes === null && bScheduledMinutes !== null) return 1;
 
-        // 都没有计划时间时，按航班号排序
         return (a.flightNumber || '').localeCompare(b.flightNumber || '');
-      }).slice(0, 10); // 只显示最近10个航班
-  }, [flights]);
+      });
 
-  // Auto-scroll to show the most recent flight (first item) in the middle of visible area
-  useEffect(() => {
-    if (middleItemRef.current && listRef.current && sortedFlights.length > 0) {
-      const listHeight = listRef.current.clientHeight;
-      const itemTop = middleItemRef.current.offsetTop;
-      const itemHeight = middleItemRef.current.clientHeight;
-      // Scroll so that the first (most recent) item appears in the middle of the list
-      const scrollPosition = itemTop - (listHeight / 2) + (itemHeight / 2);
-      listRef.current.scrollTop = Math.max(0, scrollPosition);
+    // 找到第一个计划时间 >= 当前时间的航班索引
+    let nextFlightIdx = allFlights.findIndex(f => {
+      const scheduledMinutes = parseTimeToMinutes(f.scheduledTime);
+      return scheduledMinutes !== null && scheduledMinutes >= currentMinutes;
+    });
+
+    // 如果没找到（所有航班都已过去），显示最后几班
+    if (nextFlightIdx === -1) {
+      nextFlightIdx = Math.max(0, allFlights.length - 3);
     }
-  }, [sortedFlights.length]);
 
-  // Mark the first item (most recent) as the one to scroll to
-  const mostRecentIndex = 0;
+    // 重新排列：当前时间最近的航班放在第3位（索引2）
+    // 前面放2个已过去的航班，后面放即将到来的航班
+    const targetPosition = 2; // 第3位 = 索引2
+    const startIdx = Math.max(0, nextFlightIdx - targetPosition);
 
-  // 找到"最近即将到达/出发"的航班索引（第一个计划时间 >= 当前时间的航班）
+    // 截取从startIdx开始的10个航班
+    return allFlights.slice(startIdx, startIdx + 10);
+  }, [flights, getCurrentMinutes]);
+
+  // 找到"最近即将到达/出发"的航班索引
+  // sortedFlights已经将当前时间最近的航班放在第3位附近
   const nextFlightIndex = useMemo(() => {
-    const now = new Date();
-    // 转换为日本时间的分钟数
-    const japanOffset = 9 * 60; // UTC+9
-    const utcMinutes = now.getUTCHours() * 60 + now.getUTCMinutes();
-    const currentMinutes = (utcMinutes + japanOffset) % (24 * 60);
+    const currentMinutes = getCurrentMinutes();
 
+    // 在sortedFlights中找到第一个计划时间 >= 当前时间的航班
     for (let i = 0; i < sortedFlights.length; i++) {
       const flight = sortedFlights[i];
-      // 直接使用时刻表的计划时间
       const scheduledMinutes = parseTimeToMinutes(flight.scheduledTime);
 
       if (scheduledMinutes !== null && scheduledMinutes >= currentMinutes) {
         return i;
       }
     }
-    return -1; // 没有找到（所有航班都已过去）
-  }, [sortedFlights]);
+    // 如果都已过去，最后一个有效
+    return sortedFlights.length > 0 ? sortedFlights.length - 1 : -1;
+  }, [sortedFlights, getCurrentMinutes]);
+
+  // 标记需要滚动到的航班索引（当前时间最近的航班）
+  const scrollToIndex = nextFlightIndex;
+
+  // Auto-scroll to show the next flight in the visible area
+  useEffect(() => {
+    if (middleItemRef.current && listRef.current && sortedFlights.length > 0) {
+      const listHeight = listRef.current.clientHeight;
+      const itemTop = middleItemRef.current.offsetTop;
+      const itemHeight = middleItemRef.current.clientHeight;
+      // 滚动使标记的航班可见
+      const scrollPosition = itemTop - (listHeight / 2) + (itemHeight / 2);
+      listRef.current.scrollTop = Math.max(0, scrollPosition);
+    }
+  }, [sortedFlights.length, nextFlightIndex]);
 
   // 飞机图标 SVG（用于图例）
   const planeIconSvg = (color: string, size: number = 16) => (
@@ -265,13 +424,13 @@ export function FlightList({ title, flights, selectedFlight, onSelect, type, cur
             const isSelected = normalizedFlightNumber && selectedFlight?.callsign
               ? normalizeCallsign(selectedFlight.callsign) === normalizedFlightNumber
               : false;
-            const isMostRecent = index === mostRecentIndex;
+            const shouldScrollTo = index === scrollToIndex;
             const isNextFlight = index === nextFlightIndex;
 
             return (
               <ListItem
                 key={`${flight.flightNumber}-${index}`}
-                ref={isMostRecent ? middleItemRef : null}
+                ref={shouldScrollTo ? middleItemRef : null}
                 selected={isSelected}
                 $isNextFlight={isNextFlight}
                 $type={type}
@@ -281,15 +440,19 @@ export function FlightList({ title, flights, selectedFlight, onSelect, type, cur
                   <FlightInfoWrapper>
                     <Callsign>{flight.flightNumber || '-'}</Callsign>
                     {(() => {
-                      // 显示出发地（到达航班）或目的地（出发航班）
+                      // 显示出发地（到达航班）或目的地（出发航班）+ 国家
                       if (type === 'arrival' && flight.origin) {
-                        // 到达航班显示出发地
-                        const display = flight.origin.name || flight.origin.iata || '';
+                        // 到达航班显示出发地 + 国家
+                        const airportName = flight.origin.name || flight.origin.iata || '';
+                        const country = getCountryByAirport(flight.origin.iata, lang);
+                        const display = country ? `${airportName} ${country}` : airportName;
                         return display ? <Route>（{display}）</Route> : null;
                       }
                       if (type === 'departure' && flight.destination) {
-                        // 出发航班显示目的地
-                        const display = flight.destination.name || flight.destination.iata || '';
+                        // 出发航班显示目的地 + 国家
+                        const airportName = flight.destination.name || flight.destination.iata || '';
+                        const country = getCountryByAirport(flight.destination.iata, lang);
+                        const display = country ? `${airportName} ${country}` : airportName;
                         return display ? <Route>（{display}）</Route> : null;
                       }
                       return null;
