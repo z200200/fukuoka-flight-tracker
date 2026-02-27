@@ -637,9 +637,9 @@ export function FlightProvider({ children }: FlightProviderProps) {
       }
     };
 
-    // 每30秒更新航迹（降低频率，航迹数据变化慢）
+    // 每5秒更新航迹
     fetchAllTracks();
-    const interval = setInterval(fetchAllTracks, 30000);
+    const interval = setInterval(fetchAllTracks, 5000);
     return () => clearInterval(interval);
   }, [flights, fetchAllTracksAdsbLol, isPageVisible]);
 
