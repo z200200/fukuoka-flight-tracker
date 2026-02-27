@@ -149,7 +149,7 @@ const createPlaneIcon = (heading: number | null, isSelected: boolean) => {
 };
 
 export function MapContainer() {
-  const { flights, selectedFlight, currentAirport, flightTracks, fetchFlightsInBounds } = useFlightContext();
+  const { flights, selectedFlight, currentAirport, flightTracks, flightRoutes, fetchFlightsInBounds } = useFlightContext();
   const { t } = useLanguage();
 
   // Handle map bounds change - fetch flights in new area
@@ -253,7 +253,12 @@ export function MapContainer() {
           >
             <Popup>
               <PopupContent>
-                <PopupTitle>{flight.callsign || flight.icao24?.toUpperCase() || 'Unknown'}</PopupTitle>
+                <PopupTitle>
+                  {flight.callsign || flight.icao24?.toUpperCase() || 'Unknown'}
+                  {flight.callsign && flightRoutes.get(flight.callsign)?.route && (
+                    <RouteInfo>({flightRoutes.get(flight.callsign)?.origin}→{flightRoutes.get(flight.callsign)?.destination})</RouteInfo>
+                  )}
+                </PopupTitle>
                 <PopupInfo>
                   <InfoRow>
                     <Label>{t.icao24}:</Label>
@@ -425,7 +430,12 @@ export function MapContainer() {
       {/* Selected aircraft info panel */}
       {selectedFlight && (
         <SelectedFlightPanel>
-          <PanelTitle>{selectedFlight.callsign || selectedFlight.icao24?.toUpperCase() || 'Unknown'}</PanelTitle>
+          <PanelTitle>
+            {selectedFlight.callsign || selectedFlight.icao24?.toUpperCase() || 'Unknown'}
+            {selectedFlight.callsign && flightRoutes.get(selectedFlight.callsign)?.route && (
+              <RouteInfo>({flightRoutes.get(selectedFlight.callsign)?.origin}→{flightRoutes.get(selectedFlight.callsign)?.destination})</RouteInfo>
+            )}
+          </PanelTitle>
           <PanelContent>
             <PanelRow>
               <PanelLabel>{t.icao24}:</PanelLabel>
@@ -547,6 +557,13 @@ const PopupTitle = styled.div`
   margin-bottom: 12px;
   padding-bottom: 10px;
   border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+`;
+
+const RouteInfo = styled.span`
+  font-size: 12px;
+  font-weight: 500;
+  color: rgba(255, 255, 255, 0.7);
+  margin-left: 8px;
 `;
 
 const PopupInfo = styled.div`
