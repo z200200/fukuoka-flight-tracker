@@ -73,7 +73,7 @@ export function WelcomeModal({ isOpen, onClose }: WelcomeModalProps) {
         </ModalContent>
 
         <ModalFooter>
-          <StartButton onClick={onClose}>
+          <StartButton onClick={onClose} autoFocus>
             <span>{t.start}</span>
             <Arrow>→</Arrow>
           </StartButton>

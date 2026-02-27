@@ -27,6 +27,8 @@ const translations = {
     tracking: '追踪',
     aircraft: '架飞机',
     tracks: '轨迹',
+    trackUpdate: '轨迹更新',
+    rescan: '重新扫描',
 
     // Popup labels
     icao24: 'ICAO24',
@@ -83,6 +85,8 @@ const translations = {
     tracking: '追跡中',
     aircraft: '機',
     tracks: '軌跡',
+    trackUpdate: '軌跡更新',
+    rescan: '再スキャン',
 
     // Popup labels
     icao24: 'ICAO24',
@@ -139,6 +143,8 @@ const translations = {
     tracking: 'Tracking',
     aircraft: 'aircraft',
     tracks: 'tracks',
+    trackUpdate: 'Track Update',
+    rescan: 'Rescan',
 
     // Popup labels
     icao24: 'ICAO24',
