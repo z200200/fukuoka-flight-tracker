@@ -307,42 +307,40 @@ export function FlightProvider({ children }: FlightProviderProps) {
           origin_country: string;
         }>;
 
-        // 只更新已锁定的飞机
+        // 直接使用所有返回的飞机数据，不再严格锁定 ICAO24
+        // adsb.lol API 每次返回的飞机集合可能完全不同
         const newPositions = new Map<string, typeof states[0]>();
         states.forEach(s => {
-          // 首先尝试 ICAO24 匹配
-          if (lockedIcaosRef.current.has(s.icao24)) {
+          if (s.icao24 && s.latitude && s.longitude && !s.on_ground) {
             newPositions.set(s.icao24, s);
           }
         });
 
-        // 如果匹配太少，记录调试信息
-        if (newPositions.size === 0 && states.length > 0) {
-          console.log('[FlightContext] ICAO24 match failed. Locked:',
-            Array.from(lockedIcaosRef.current).slice(0, 5),
-            'Received:', states.slice(0, 5).map(s => s.icao24));
+        if (newPositions.size > 0) {
+          // 更新锁定的 ICAO 列表为当前实际存在的飞机
+          lockedIcaosRef.current = new Set(newPositions.keys());
+
+          // 直接替换飞机列表为最新数据
+          const flightData = Array.from(newPositions.values()).map(state => ({
+            icao24: state.icao24,
+            callsign: state.callsign?.trim() || null,
+            latitude: state.latitude as number,
+            longitude: state.longitude as number,
+            altitude: state.baro_altitude,
+            velocity: state.velocity,
+            heading: state.true_track,
+            onGround: state.on_ground,
+            originCountry: state.origin_country,
+            lastContact: Math.floor(Date.now() / 1000),
+            departureAirport: null,
+            arrivalAirport: null,
+          }));
+
+          setFlights(flightData);
+          console.log(`[FlightContext] Updated positions: ${newPositions.size} aircraft in range`);
+        } else {
+          console.log('[FlightContext] No valid aircraft data in response');
         }
-
-        setFlights(prev => {
-          return prev.map(flight => {
-            const updated = newPositions.get(flight.icao24);
-            if (updated && updated.latitude !== null && updated.longitude !== null) {
-              return {
-                ...flight,
-                latitude: updated.latitude,
-                longitude: updated.longitude,
-                altitude: updated.baro_altitude,
-                velocity: updated.velocity,
-                heading: updated.true_track,
-                callsign: updated.callsign?.trim() || flight.callsign,
-                lastContact: Math.floor(Date.now() / 1000),
-              };
-            }
-            return flight; // 保留旧位置（飞机暂时没信号）
-          });
-        });
-
-        console.log(`[FlightContext] Updated positions for ${newPositions.size}/${lockedIcaosRef.current.size} aircraft`);
       }
       setLastUpdate(new Date());
     } catch (err) {
