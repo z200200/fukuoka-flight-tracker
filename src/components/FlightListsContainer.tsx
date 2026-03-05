@@ -101,7 +101,7 @@ const Container = styled.div`
   display: flex;
   flex-direction: column;
   height: 100%;
-  background: linear-gradient(180deg, #0a0a12 0%, #0f0f1a 100%);
+  background: #FAFBFC;
   overflow: hidden;
 `;
 
@@ -113,6 +113,6 @@ const ListWrapper = styled.div`
 
 const Divider = styled.div`
   height: 1px;
-  background: linear-gradient(90deg, transparent 0%, rgba(0, 255, 255, 0.3) 50%, transparent 100%);
+  background: #E5E7EB;
   flex-shrink: 0;
 `;

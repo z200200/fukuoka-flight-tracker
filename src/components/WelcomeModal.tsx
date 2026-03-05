@@ -91,8 +91,8 @@ const Overlay = styled.div`
   left: 0;
   right: 0;
   bottom: 0;
-  background: rgba(0, 0, 0, 0.6);
-  backdrop-filter: blur(8px);
+  background: rgba(0, 0, 0, 0.4);
+  backdrop-filter: blur(4px);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -106,17 +106,13 @@ const Overlay = styled.div`
 `;
 
 const Modal = styled.div`
-  background: rgba(10, 15, 25, 0.85);
-  backdrop-filter: blur(20px);
-  border: 1px solid rgba(0, 212, 255, 0.3);
-  border-radius: 16px;
+  background: #FFFFFF;
+  border: 1px solid #E5E7EB;
+  border-radius: 12px;
   padding: 40px;
   max-width: 520px;
   width: 90%;
-  box-shadow:
-    0 0 40px rgba(0, 212, 255, 0.2),
-    0 0 80px rgba(0, 0, 0, 0.5),
-    inset 0 0 60px rgba(0, 212, 255, 0.05);
+  box-shadow: 0 4px 24px rgba(0, 0, 0, 0.15);
   animation: slideUp 0.4s ease;
   position: relative;
 
@@ -141,19 +137,19 @@ const LanguageSwitch = styled.div`
 `;
 
 const LangButton = styled.button<{ active: boolean; isLarge?: boolean }>`
-  background: ${props => props.active ? 'rgba(0, 212, 255, 0.3)' : 'transparent'};
-  border: 1px solid ${props => props.active ? '#00d4ff' : 'rgba(0, 212, 255, 0.3)'};
-  color: ${props => props.active ? '#00d4ff' : 'rgba(255, 255, 255, 0.5)'};
+  background: ${props => props.active ? '#6366F1' : '#F3F4F6'};
+  border: 1px solid ${props => props.active ? '#6366F1' : '#E5E7EB'};
+  color: ${props => props.active ? '#FFFFFF' : '#6B7280'};
   padding: ${props => props.isLarge ? '6px 14px' : '4px 10px'};
-  border-radius: 4px;
+  border-radius: 6px;
   font-size: ${props => props.isLarge ? '14px' : '11px'};
   cursor: pointer;
   transition: all 0.2s ease;
   font-family: ${props => props.isLarge ? "'Microsoft YaHei', 'PingFang SC', sans-serif" : "'Consolas', 'Monaco', monospace"};
 
   &:hover {
-    border-color: #00d4ff;
-    color: #00d4ff;
+    border-color: #6366F1;
+    background: ${props => props.active ? '#4F46E5' : '#E5E7EB'};
   }
 `;
 
@@ -161,24 +157,23 @@ const ModalHeader = styled.div`
   text-align: center;
   margin-bottom: 32px;
   padding-bottom: 24px;
-  border-bottom: 1px solid rgba(0, 212, 255, 0.2);
+  border-bottom: 1px solid #E5E7EB;
 `;
 
 const Title = styled.h1`
-  font-size: 32px;
+  font-size: 28px;
   font-weight: 700;
-  color: #00d4ff;
+  color: #6366F1;
   margin: 0 0 8px 0;
-  font-family: 'Consolas', 'Monaco', monospace;
-  letter-spacing: 4px;
-  text-shadow: 0 0 20px rgba(0, 212, 255, 0.5);
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  letter-spacing: 2px;
 `;
 
 const Subtitle = styled.p`
   font-size: 14px;
-  color: rgba(255, 255, 255, 0.6);
+  color: #6B7280;
   margin: 0;
-  letter-spacing: 2px;
+  letter-spacing: 1px;
 `;
 
 const ModalContent = styled.div`
@@ -191,16 +186,17 @@ const Section = styled.div``;
 
 const SectionTitle = styled.h3`
   font-size: 12px;
-  color: #00d4ff;
+  color: #6366F1;
   margin: 0 0 12px 0;
-  font-family: 'Consolas', 'Monaco', monospace;
-  letter-spacing: 2px;
-  opacity: 0.8;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  letter-spacing: 1px;
+  font-weight: 600;
+  text-transform: uppercase;
 `;
 
 const Description = styled.p`
   font-size: 14px;
-  color: rgba(255, 255, 255, 0.8);
+  color: #374151;
   margin: 0;
   line-height: 1.8;
 `;
@@ -219,14 +215,14 @@ const FeatureItem = styled.div`
 
 const FeatureIcon = styled.span`
   font-size: 11px;
-  color: #00d4ff;
+  color: #6366F1;
   font-family: 'Consolas', 'Monaco', monospace;
   min-width: 20px;
 `;
 
 const FeatureText = styled.span`
   font-size: 13px;
-  color: rgba(255, 255, 255, 0.7);
+  color: #4B5563;
 `;
 
 const ModalFooter = styled.div`
@@ -239,7 +235,7 @@ const StartButton = styled.button`
   display: flex;
   align-items: center;
   gap: 12px;
-  background: linear-gradient(135deg, #00d4ff 0%, #0088bb 100%);
+  background: #6366F1;
   border: none;
   border-radius: 8px;
   padding: 14px 36px;
@@ -247,14 +243,15 @@ const StartButton = styled.button`
   font-size: 16px;
   font-weight: 600;
   color: white;
-  font-family: 'Consolas', 'Monaco', monospace;
-  letter-spacing: 2px;
-  transition: all 0.3s ease;
-  box-shadow: 0 0 30px rgba(0, 212, 255, 0.4);
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  letter-spacing: 1px;
+  transition: all 0.2s ease;
+  box-shadow: 0 2px 8px rgba(99, 102, 241, 0.3);
 
   &:hover {
-    transform: translateY(-2px);
-    box-shadow: 0 0 40px rgba(0, 212, 255, 0.6);
+    background: #4F46E5;
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(99, 102, 241, 0.4);
   }
 
   &:active {
@@ -275,6 +272,6 @@ const VersionTag = styled.div`
   text-align: center;
   margin-top: 24px;
   font-size: 11px;
-  color: rgba(0, 212, 255, 0.4);
+  color: #9CA3AF;
   font-family: 'Consolas', 'Monaco', monospace;
 `;

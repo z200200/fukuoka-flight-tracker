@@ -399,6 +399,33 @@ function normalizeCallsign(callsign: string | null | undefined): string | null {
   return callsign.trim().replace(/\s+/g, '').toUpperCase();
 }
 
+// IATA → ICAO 航空公司代码映射表
+const IATA_TO_ICAO: Record<string, string> = {
+  'JL': 'JAL', 'NH': 'ANA', 'BC': 'SKY', 'JQ': 'JJP', 'MM': 'APJ',
+  'GK': 'JJA', 'NU': 'JTA', 'HD': 'ADO', '7G': 'SFJ', 'FW': 'IBX', 'DJ': 'FDA',
+  'MU': 'CES', 'CA': 'CCA', 'CZ': 'CSN', 'HU': 'CHH', 'SC': 'CDG',
+  '3U': 'CSC', 'MF': 'CXA', 'ZH': 'CSZ', '9C': 'CQH',
+  'KE': 'KAL', 'OZ': 'AAR', 'LJ': 'JNA', 'TW': 'TWB', 'BX': 'ABL',
+  '7C': 'JJA', 'ZE': 'ESR', 'RF': 'EOK',
+  'BR': 'EVA', 'CI': 'CAL', 'IT': 'TTW', 'CX': 'CPA', 'HX': 'CRK', 'UO': 'HKE',
+  'SQ': 'SIA', 'TG': 'THA', 'VN': 'HVN', 'VJ': 'VJC', 'QF': 'QFA', 'PR': 'PAL',
+  'AA': 'AAL', 'UA': 'UAL', 'DL': 'DAL', 'AF': 'AFR', 'BA': 'BAW', 'LH': 'DLH',
+  'FX': 'FDX', '5X': 'UPS',
+};
+
+// 将 IATA 格式航班号转换为 ICAO 格式 (JL310 → JAL310)
+function convertIataToIcao(flightNumber: string | null | undefined): string | null {
+  if (!flightNumber) return null;
+  const normalized = flightNumber.trim().replace(/\s+/g, '').toUpperCase();
+  const match = normalized.match(/^([A-Z]{2}|[A-Z]\d|\d[A-Z]|[A-Z]{3})(\d+)$/);
+  if (!match) return normalized;
+  const [, airlineCode, flightNum] = match;
+  if (airlineCode.length === 2 && IATA_TO_ICAO[airlineCode]) {
+    return IATA_TO_ICAO[airlineCode] + flightNum;
+  }
+  return normalized;
+}
+
 // 从callsign提取航空公司（多语言）
 function getAirline(callsign: string | null, lang: Language): string {
   if (!callsign || !isValidCallsign(callsign)) return '';
@@ -565,9 +592,12 @@ export function FlightList({ title, flights, selectedFlight, onSelect, type, cur
         ) : (
           sortedFlights.map((flight, index) => {
             // 使用 flightNumber 作为标识匹配选中的飞机（通过 callsign 匹配雷达数据）
+            // 时刻表用IATA格式(JL310)，雷达用ICAO格式(JAL310)，需要转换后比较
             const normalizedFlightNumber = normalizeCallsign(flight.flightNumber);
-            const isSelected = normalizedFlightNumber && selectedFlight?.callsign
-              ? normalizeCallsign(selectedFlight.callsign) === normalizedFlightNumber
+            const icaoFlightNumber = convertIataToIcao(normalizedFlightNumber);
+            const selectedCallsign = normalizeCallsign(selectedFlight?.callsign);
+            const isSelected = icaoFlightNumber && selectedCallsign
+              ? selectedCallsign === icaoFlightNumber || selectedCallsign === normalizedFlightNumber
               : false;
             const shouldScrollTo = index === scrollToIndex;
             const isNextFlight = index === nextFlightIndex;
@@ -634,7 +664,7 @@ const Container = styled.div`
   display: flex;
   flex-direction: column;
   height: 100%;
-  background: linear-gradient(180deg, #0a0a12 0%, #0f0f1a 100%);
+  background: #FAFBFC;
 `;
 
 const Header = styled.div`
@@ -642,8 +672,8 @@ const Header = styled.div`
   justify-content: space-between;
   align-items: center;
   padding: 12px 16px;
-  border-bottom: 1px solid rgba(0, 255, 255, 0.15);
-  background: linear-gradient(180deg, #0d0d18 0%, #0a0a12 100%);
+  border-bottom: 1px solid #E5E7EB;
+  background: #FFFFFF;
 `;
 
 const HeaderRight = styled.div`
@@ -654,7 +684,7 @@ const HeaderRight = styled.div`
 
 const ScaleIndicator = styled.span`
   font-size: 10px;
-  color: rgba(0, 255, 255, 0.5);
+  color: #9CA3AF;
   font-family: 'Consolas', 'Monaco', monospace;
 `;
 
@@ -668,11 +698,10 @@ const Title = styled.h2`
   margin: 0;
   font-size: 14px;
   font-weight: 600;
-  color: #00ffff;
-  font-family: 'Consolas', 'Monaco', monospace;
+  color: #374151;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
   text-transform: uppercase;
-  letter-spacing: 2px;
-  text-shadow: 0 0 10px rgba(0, 255, 255, 0.3);
+  letter-spacing: 1px;
 `;
 
 const IconLegend = styled.div`
@@ -680,9 +709,9 @@ const IconLegend = styled.div`
   align-items: center;
   gap: 2px;
   padding: 2px 6px;
-  background: rgba(255, 255, 255, 0.05);
+  background: #F3F4F6;
   border-radius: 4px;
-  border: 1px solid rgba(255, 255, 255, 0.1);
+  border: 1px solid #E5E7EB;
 `;
 
 const LegendArrow = styled.span<{ $type: 'arrival' | 'departure' }>`
@@ -694,11 +723,11 @@ const LegendArrow = styled.span<{ $type: 'arrival' | 'departure' }>`
 
 const Count = styled.span`
   font-size: 12px;
-  color: #00ffff;
-  background: rgba(0, 255, 255, 0.1);
-  border: 1px solid rgba(0, 255, 255, 0.3);
+  color: #6366F1;
+  background: #EEF2FF;
+  border: 1px solid #C7D2FE;
   padding: 4px 10px;
-  border-radius: 4px;
+  border-radius: 6px;
   font-family: 'Consolas', 'Monaco', monospace;
 `;
 
@@ -709,20 +738,20 @@ const List = styled.div<{ $scale: number }>`
   font-size: ${props => props.$scale}em;
 
   &::-webkit-scrollbar {
-    width: 4px;
+    width: 6px;
   }
 
   &::-webkit-scrollbar-track {
-    background: rgba(0, 255, 255, 0.05);
+    background: #F3F4F6;
   }
 
   &::-webkit-scrollbar-thumb {
-    background: rgba(0, 255, 255, 0.3);
-    border-radius: 2px;
+    background: #D1D5DB;
+    border-radius: 3px;
   }
 
   &::-webkit-scrollbar-thumb:hover {
-    background: rgba(0, 255, 255, 0.5);
+    background: #9CA3AF;
   }
 `;
 
@@ -731,58 +760,39 @@ const EmptyState = styled.div`
   align-items: center;
   justify-content: center;
   height: 100%;
-  color: rgba(0, 255, 255, 0.3);
+  color: #9CA3AF;
   font-size: 0.8125em;  /* 13px -> em for scaling */
-  font-family: 'Consolas', 'Monaco', monospace;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
 `;
 
 const ListItem = styled.div<{ selected: boolean; $isNextFlight?: boolean; $type?: 'arrival' | 'departure' }>`
-  padding: 0.625em 0.875em;  /* 10px 14px -> em for scaling */
+  padding: 0.75em 1em;  /* 12px 16px -> em for scaling */
   cursor: pointer;
   position: relative;
   background: ${(props) => {
     if (props.selected) {
-      return 'linear-gradient(90deg, rgba(0, 255, 0, 0.15) 0%, rgba(0, 255, 0, 0.05) 100%)';
+      return '#EEF2FF';
     }
     if (props.$isNextFlight) {
-      // 最近即将到达/出发的航班 - 特殊高亮背景（加深颜色）
-      const color = props.$type === 'arrival' ? '0, 188, 212' : '255, 152, 0'; // cyan / orange
-      return `linear-gradient(90deg, rgba(${color}, 0.35) 0%, rgba(${color}, 0.15) 100%)`;
+      // 最近即将到达/出发的航班 - 柔和高亮背景
+      return props.$type === 'arrival' ? '#E0F7FA' : '#FFF3E0';
     }
-    return 'transparent';
+    return '#FFFFFF';
   }};
-  border-bottom: 1px solid rgba(0, 255, 255, 0.08);
+  border-bottom: 1px solid #E5E7EB;
   border-left: 3px solid ${(props) => {
-    if (props.selected) return '#00ff00';
+    if (props.selected) return '#6366F1';
     if (props.$isNextFlight) {
       return props.$type === 'arrival' ? '#00BCD4' : '#FF9800';
     }
     return 'transparent';
   }};
   transition: all 0.2s ease;
-
-  /* 最近即将到达/出发的航班 - 添加脉冲动画边框 */
-  ${(props) => props.$isNextFlight && `
-    &::before {
-      content: '';
-      position: absolute;
-      left: 0;
-      top: 0;
-      bottom: 0;
-      width: 3px;
-      background: ${props.$type === 'arrival' ? '#00BCD4' : '#FF9800'};
-      animation: pulse 2s ease-in-out infinite;
-    }
-
-    @keyframes pulse {
-      0%, 100% { opacity: 1; }
-      50% { opacity: 0.4; }
-    }
-  `}
+  border-radius: 0;
 
   &:hover {
-    background: rgba(0, 255, 255, 0.05);
-    border-left-color: rgba(0, 255, 255, 0.5);
+    background: #F9FAFB;
+    border-left-color: ${(props) => props.selected ? '#6366F1' : '#6366F1'};
   }
 
   &:last-child {
@@ -807,19 +817,18 @@ const FlightInfoWrapper = styled.div`
 `;
 
 const Callsign = styled.span`
-  font-weight: 700;
+  font-weight: 600;
   font-size: 0.875em;  /* 14px -> em for scaling */
-  color: #ffffff;
+  color: #374151;
   font-family: 'Consolas', 'Monaco', monospace;
-  letter-spacing: 1px;
+  letter-spacing: 0.5px;
 `;
 
 const Time = styled.div<{ $hasSchedule?: boolean }>`
   font-size: 0.75em;  /* 12px -> em for scaling */
-  color: ${props => props.$hasSchedule ? '#00ff00' : 'rgba(0, 255, 255, 0.5)'};
+  color: ${props => props.$hasSchedule ? '#059669' : '#9CA3AF'};
   font-weight: 600;
   font-family: 'Consolas', 'Monaco', monospace;
-  text-shadow: ${props => props.$hasSchedule ? '0 0 5px rgba(0, 255, 0, 0.3)' : 'none'};
   display: flex;
   flex-direction: column;
   align-items: flex-end;
@@ -828,36 +837,36 @@ const Time = styled.div<{ $hasSchedule?: boolean }>`
 
 const Status = styled.span<{ $status: string }>`
   font-size: 0.7em;
-  padding: 1px 4px;
-  border-radius: 2px;
+  padding: 2px 6px;
+  border-radius: 4px;
   background: ${props => {
     const s = props.$status?.toLowerCase() || '';
-    if (s.includes('出发') || s.includes('departed') || s.includes('離陸')) return 'rgba(0, 255, 0, 0.2)';
-    if (s.includes('到达') || s.includes('arrived') || s.includes('着陸')) return 'rgba(0, 255, 255, 0.2)';
-    if (s.includes('延误') || s.includes('delayed') || s.includes('遅延')) return 'rgba(255, 165, 0, 0.2)';
-    if (s.includes('取消') || s.includes('cancelled') || s.includes('欠航')) return 'rgba(255, 0, 0, 0.2)';
-    if (s.includes('登机') || s.includes('boarding') || s.includes('搭乗')) return 'rgba(255, 255, 0, 0.2)';
-    return 'rgba(100, 100, 100, 0.2)';
+    if (s.includes('出发') || s.includes('departed') || s.includes('離陸')) return '#D1FAE5';
+    if (s.includes('到达') || s.includes('arrived') || s.includes('着陸')) return '#CFFAFE';
+    if (s.includes('延误') || s.includes('delayed') || s.includes('遅延')) return '#FEF3C7';
+    if (s.includes('取消') || s.includes('cancelled') || s.includes('欠航')) return '#FEE2E2';
+    if (s.includes('登机') || s.includes('boarding') || s.includes('搭乗')) return '#FEF9C3';
+    return '#F3F4F6';
   }};
   color: ${props => {
     const s = props.$status?.toLowerCase() || '';
-    if (s.includes('出发') || s.includes('departed') || s.includes('離陸')) return '#00ff00';
-    if (s.includes('到达') || s.includes('arrived') || s.includes('着陸')) return '#00ffff';
-    if (s.includes('延误') || s.includes('delayed') || s.includes('遅延')) return '#ffa500';
-    if (s.includes('取消') || s.includes('cancelled') || s.includes('欠航')) return '#ff6666';
-    if (s.includes('登机') || s.includes('boarding') || s.includes('搭乗')) return '#ffff00';
-    return '#888888';
+    if (s.includes('出发') || s.includes('departed') || s.includes('離陸')) return '#059669';
+    if (s.includes('到达') || s.includes('arrived') || s.includes('着陸')) return '#0891B2';
+    if (s.includes('延误') || s.includes('delayed') || s.includes('遅延')) return '#D97706';
+    if (s.includes('取消') || s.includes('cancelled') || s.includes('欠航')) return '#DC2626';
+    if (s.includes('登机') || s.includes('boarding') || s.includes('搭乗')) return '#CA8A04';
+    return '#6B7280';
   }};
 `;
 
 const Route = styled.span`
   font-size: 0.75em;  /* 12px -> em for scaling */
-  color: rgba(0, 255, 255, 0.6);
+  color: #6B7280;
 `;
 
 const Airline = styled.span`
   font-size: 0.6875em;  /* 11px -> em for scaling */
-  color: rgba(255, 255, 255, 0.5);
+  color: #9CA3AF;
 `;
 
 const Details = styled.div`
@@ -868,7 +877,7 @@ const Details = styled.div`
 
 const DetailItem = styled.div`
   font-size: 0.6875em;  /* 11px -> em for scaling */
-  color: rgba(0, 255, 255, 0.5);
+  color: #6B7280;
   display: flex;
   align-items: center;
   gap: 0.25em;
@@ -876,11 +885,10 @@ const DetailItem = styled.div`
 
   &::before {
     content: '';
-    width: 0.2em;
-    height: 0.2em;
-    background: #00ffff;
+    width: 0.25em;
+    height: 0.25em;
+    background: #6366F1;
     border-radius: 50%;
-    box-shadow: 0 0 4px #00ffff;
   }
 `;
 

@@ -360,10 +360,12 @@ export function MapContainer() {
 
   // Generate real flight tracks from track data
   // 只显示蓝圈（机场半径）范围内的飞机轨迹
+  // 包含速度数据用于渐变着色
   const realFlightTracks = useMemo(() => {
     const tracks: Array<{
       icao24: string;
       positions: [number, number][];
+      speeds: number[];  // 每段的速度 (km/h)
       hasTrack: boolean;
     }> = [];
 
@@ -378,18 +380,32 @@ export function MapContainer() {
 
       // 蓝圈外的飞机不显示轨迹
       if (distanceToAirport > currentAirport.radiusKm) {
-        return; // 跳过，不添加轨迹
+        return;
       }
 
       const trackData = flightTracks.get(flight.icao24);
       if (trackData && trackData.length > 1) {
-        // Use real track data - 只保留最近40个点，避免轨迹过长
-        const positions = trackData.map(
+        // 只保留最近40个点
+        const recentTrack = trackData.slice(-40);
+        const positions = recentTrack.map(
           (wp) => [wp.latitude, wp.longitude] as [number, number]
-        ).slice(-40);
+        );
+
+        // 计算每段速度
+        const speeds: number[] = [];
+        for (let i = 0; i < recentTrack.length - 1; i++) {
+          const p1 = recentTrack[i];
+          const p2 = recentTrack[i + 1];
+          const dist = getDistance(p1.latitude, p1.longitude, p2.latitude, p2.longitude);
+          const timeDiff = (p2.time - p1.time) / 3600; // 秒转小时
+          const speed = timeDiff > 0 ? dist / timeDiff : 0; // km/h
+          speeds.push(Math.min(speed, 1200)); // 限制最大1200km/h
+        }
+
         tracks.push({
           icao24: flight.icao24,
           positions,
+          speeds,
           hasTrack: true,
         });
       } else {
@@ -401,6 +417,7 @@ export function MapContainer() {
             airportCoords,
             [flight.latitude, flight.longitude] as [number, number],
           ],
+          speeds: [flight.velocity ? flight.velocity * 3.6 : 400], // m/s → km/h
           hasTrack: false,
         });
       }
@@ -662,19 +679,42 @@ export function MapContainer() {
               />
             );
           }
-          // 真实轨迹：分段渐变颜色（从旧到新：深色到亮色）
+          // E方案：速度→颜色，时间→透明度
+          // 速度色谱: 慢(蓝) → 中(青) → 快(橙) → 极快(红)
+          const getSpeedColor = (speed: number): string => {
+            if (speed < 200) return '#3B82F6';      // 蓝 - 地面/起降
+            if (speed < 400) return '#06B6D4';      // 青 - 爬升/下降
+            if (speed < 600) return '#22C55E';      // 绿 - 低速巡航
+            if (speed < 800) return '#EAB308';      // 黄 - 中速巡航
+            if (speed < 1000) return '#F97316';     // 橙 - 高速巡航
+            return '#EF4444';                        // 红 - 极速
+          };
+
           const segments: React.ReactElement[] = [];
-          const colors = ['#1a1a4e', '#2d2d7a', '#4040a6', '#5353d2', '#6666ff', '#8888ff', '#aaaaff', '#FF6600'];
-          for (let i = 0; i < track.positions.length - 1; i++) {
-            const colorIndex = Math.floor((i / (track.positions.length - 1)) * (colors.length - 1));
+          const totalSegments = track.positions.length - 1;
+
+          for (let i = 0; i < totalSegments; i++) {
+            // 速度决定颜色
+            const speed = track.speeds[i] || 400;
+            const color = getSpeedColor(speed);
+
+            // 时间决定透明度: 旧(0.25) → 新(0.95)
+            const timeProgress = i / Math.max(totalSegments - 1, 1);
+            const opacity = 0.25 + timeProgress * 0.7;
+
+            // 线宽也随时间变化: 旧(2) → 新(5)
+            const weight = 2 + timeProgress * 3;
+
             segments.push(
               <Polyline
                 key={`track-${track.icao24}-seg-${i}`}
                 positions={[track.positions[i], track.positions[i + 1]]}
                 pathOptions={{
-                  color: colors[colorIndex],
-                  weight: 4,
-                  opacity: 0.9,
+                  color,
+                  weight,
+                  opacity,
+                  lineCap: 'round',
+                  lineJoin: 'round',
                 }}
               />
             );
@@ -756,17 +796,17 @@ const MapWrapper = styled.div`
   /* Popup styling */
   .leaflet-popup-content-wrapper {
     background: transparent;
-    box-shadow: 0 8px 40px rgba(0, 0, 0, 0.6);
-    border-radius: 12px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+    border-radius: 8px;
     overflow: hidden;
   }
 
   .leaflet-popup-tip {
-    background: #1C1C1E;
+    background: #FFFFFF;
   }
 
   .leaflet-popup-close-button {
-    color: white !important;
+    color: #6B7280 !important;
   }
 `;
 
@@ -774,19 +814,19 @@ const StatusOverlay = styled.div`
   position: absolute;
   top: 10px;
   left: 50px;
-  background: rgba(28, 28, 30, 0.95);
-  backdrop-filter: blur(20px);
-  padding: 12px 20px;
-  border-radius: 12px;
-  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.4);
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(255, 255, 255, 0.95);
+  backdrop-filter: blur(10px);
+  padding: 10px 16px;
+  border-radius: 8px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+  border: 1px solid #E5E7EB;
   z-index: 1000;
 `;
 
 const StatusText = styled.div`
-  font-size: 14px;
-  font-weight: 600;
-  color: white;
+  font-size: 13px;
+  font-weight: 500;
+  color: #374151;
   display: flex;
   align-items: center;
   gap: 10px;
@@ -795,10 +835,9 @@ const StatusText = styled.div`
     content: '';
     width: 8px;
     height: 8px;
-    background: #FA233B;
+    background: #6366F1;
     border-radius: 50%;
     animation: blink 1.5s infinite;
-    box-shadow: 0 0 8px rgba(250, 35, 59, 0.6);
   }
 
   @keyframes blink {
@@ -809,26 +848,26 @@ const StatusText = styled.div`
 
 const PopupContent = styled.div`
   min-width: 220px;
-  background: #1C1C1E;
+  background: #FFFFFF;
   margin: -14px -20px;
   padding: 16px 20px;
-  border-radius: 12px;
-  color: white;
+  border-radius: 8px;
+  color: #374151;
 `;
 
 const PopupTitle = styled.div`
   font-size: 16px;
-  font-weight: 700;
-  color: #FC5C7D;
+  font-weight: 600;
+  color: #6366F1;
   margin-bottom: 12px;
   padding-bottom: 10px;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  border-bottom: 1px solid #E5E7EB;
 `;
 
 const RouteInfo = styled.span`
   font-size: 12px;
   font-weight: 500;
-  color: rgba(255, 255, 255, 0.7);
+  color: #6B7280;
   margin-left: 8px;
 `;
 
@@ -846,12 +885,12 @@ const InfoRow = styled.div`
 `;
 
 const Label = styled.span`
-  color: rgba(255, 255, 255, 0.6);
+  color: #6B7280;
   font-weight: 500;
 `;
 
 const Value = styled.span`
-  color: white;
+  color: #374151;
   font-weight: 600;
   margin-left: 8px;
 `;
@@ -861,12 +900,12 @@ const SelectedFlightPanel = styled.div`
   position: absolute;
   bottom: 20px;
   left: 50px;
-  background: rgba(28, 28, 30, 0.95);
-  backdrop-filter: blur(20px);
+  background: rgba(255, 255, 255, 0.95);
+  backdrop-filter: blur(10px);
   padding: 16px 20px;
-  border-radius: 12px;
-  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.4);
-  border: 1px solid rgba(255, 107, 107, 0.3);
+  border-radius: 8px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+  border: 1px solid #C7D2FE;
   z-index: 1000;
   min-width: 200px;
   animation: slideIn 0.3s ease;
@@ -892,11 +931,11 @@ const SelectedFlightPanel = styled.div`
 
 const PanelTitle = styled.div`
   font-size: 16px;
-  font-weight: 700;
-  color: #FF6B6B;
+  font-weight: 600;
+  color: #6366F1;
   margin-bottom: 12px;
   padding-bottom: 10px;
-  border-bottom: 1px solid rgba(255, 107, 107, 0.3);
+  border-bottom: 1px solid #E5E7EB;
   font-family: 'Consolas', 'Monaco', monospace;
 `;
 
@@ -913,12 +952,12 @@ const PanelRow = styled.div`
 `;
 
 const PanelLabel = styled.span`
-  color: rgba(255, 255, 255, 0.6);
+  color: #6B7280;
   font-weight: 500;
 `;
 
 const PanelValue = styled.span`
-  color: white;
+  color: #374151;
   font-weight: 600;
   font-family: 'Consolas', 'Monaco', monospace;
 `;

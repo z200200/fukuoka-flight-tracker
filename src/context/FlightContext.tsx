@@ -195,8 +195,8 @@ export function FlightProvider({ children }: FlightProviderProps) {
 
   // 倒计时状态
   const [nextUpdateSeconds, setNextUpdateSeconds] = useState(3);
-  // -1 表示不会自动重新扫描（航班列表固定）
-  const [nextRescanSeconds] = useState(-1); // 移除 setter，航班列表不会自动刷新
+  // 重新扫描倒计时：点击刷新后开始120秒倒计时
+  const [nextRescanSeconds, setNextRescanSeconds] = useState(-1);
 
   // 扫描飞机列表（初次加载或重新扫描时调用）
   // 使用地图视野范围获取飞机，如果没有视野范围则使用机场默认半径
@@ -276,6 +276,8 @@ export function FlightProvider({ children }: FlightProviderProps) {
         }
       }
       setLastUpdate(new Date());
+      // 开始120秒倒计时
+      setNextRescanSeconds(120);
     } catch (err) {
       console.error('[FlightContext] Failed to scan aircraft:', err);
     }
@@ -365,15 +367,15 @@ export function FlightProvider({ children }: FlightProviderProps) {
     return () => clearInterval(interval);
   }, [updatePositions, isPageVisible]);
 
-  // 倒计时更新（每秒）- 只显示位置更新倒计时
+  // 倒计时更新（每秒）
   useEffect(() => {
     const countdownInterval = setInterval(() => {
       const now = Date.now();
       const updateElapsed = now - lastUpdateTimeRef.current;
 
       setNextUpdateSeconds(Math.max(0, Math.ceil((UPDATE_INTERVAL - updateElapsed) / 1000)));
-      // 不再重新扫描，所以不需要显示重新扫描倒计时
-      // setNextRescanSeconds 保持不变或设为-1表示不会重新扫描
+      // 重新扫描倒计时（点击刷新后开始倒计时）
+      setNextRescanSeconds(prev => prev > 0 ? prev - 1 : prev);
     }, 1000);
 
     return () => clearInterval(countdownInterval);

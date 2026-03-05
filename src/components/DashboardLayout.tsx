@@ -212,15 +212,15 @@ const MobileContainer = styled.div`
 `;
 
 const Header = styled.header`
-  background: linear-gradient(180deg, #0a0a0f 0%, #1a1a2e 100%);
-  color: white;
+  background: linear-gradient(180deg, #FFFFFF 0%, #F8FAFC 100%);
+  color: #374151;
   padding: 12px 24px;
   display: flex;
   justify-content: space-between;
   align-items: center;
   flex-shrink: 0;
-  border-bottom: 1px solid rgba(0, 255, 255, 0.2);
-  box-shadow: 0 2px 20px rgba(0, 255, 255, 0.1);
+  border-bottom: 1px solid #E5E7EB;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
   gap: 24px;
 `;
 
@@ -246,19 +246,19 @@ const LanguageSwitch = styled.div`
 `;
 
 const LangButton = styled.button<{ active: boolean; isLarge?: boolean }>`
-  background: ${props => props.active ? 'rgba(0, 212, 255, 0.3)' : 'transparent'};
-  border: 1px solid ${props => props.active ? '#00d4ff' : 'rgba(0, 212, 255, 0.3)'};
-  color: ${props => props.active ? '#00d4ff' : 'rgba(255, 255, 255, 0.5)'};
+  background: ${props => props.active ? '#6366F1' : '#F3F4F6'};
+  border: 1px solid ${props => props.active ? '#6366F1' : '#E5E7EB'};
+  color: ${props => props.active ? 'white' : '#6B7280'};
   padding: ${props => props.isLarge ? '6px 14px' : '4px 10px'};
-  border-radius: 4px;
+  border-radius: 6px;
   font-size: ${props => props.isLarge ? '14px' : '11px'};
   cursor: pointer;
   transition: all 0.2s ease;
   font-family: ${props => props.isLarge ? "'Microsoft YaHei', 'PingFang SC', sans-serif" : "'Consolas', 'Monaco', monospace"};
 
   &:hover {
-    border-color: #00d4ff;
-    color: #00d4ff;
+    background: ${props => props.active ? '#4F46E5' : '#E5E7EB'};
+    border-color: ${props => props.active ? '#4F46E5' : '#D1D5DB'};
   }
 `;
 
@@ -276,7 +276,7 @@ const HeaderInfo = styled.div`
 
 const UpdateTime = styled.div`
   font-size: 12px;
-  color: rgba(0, 255, 255, 0.7);
+  color: #6B7280;
   font-family: 'Consolas', 'Monaco', monospace;
 `;
 
@@ -295,58 +295,58 @@ const CountdownItem = styled.div`
 
 const CountdownItemClickable = styled(CountdownItem)`
   cursor: pointer;
-  border-radius: 4px;
+  border-radius: 6px;
   transition: background 0.2s;
 
   &:hover {
-    background: rgba(0, 255, 255, 0.1);
+    background: rgba(99, 102, 241, 0.1);
   }
 
   &:active {
-    background: rgba(0, 255, 255, 0.2);
+    background: rgba(99, 102, 241, 0.15);
   }
 `;
 
 const CountdownLabel = styled.div`
   font-size: 10px;
-  color: rgba(0, 255, 255, 0.6);
+  color: #6B7280;
   font-family: 'Consolas', 'Monaco', monospace;
 `;
 
 const CountdownBarWrapper = styled.div`
   width: 80px;
   height: 6px;
-  background: rgba(0, 255, 255, 0.1);
+  background: #E5E7EB;
   border-radius: 3px;
   overflow: hidden;
 `;
 
 const CountdownBar = styled.div`
   height: 100%;
-  background: linear-gradient(90deg, rgba(0, 255, 255, 0.4) 0%, rgba(0, 255, 255, 0.8) 100%);
+  background: linear-gradient(90deg, #A5B4FC 0%, #6366F1 100%);
   transition: width 1s linear;
   border-radius: 3px;
 `;
 
 const RefreshButton = styled.button`
-  background: transparent;
-  border: 1px solid rgba(0, 255, 255, 0.5);
-  color: #00ffff;
+  background: #FFFFFF;
+  border: 1px solid #E5E7EB;
+  color: #6366F1;
   padding: 8px 20px;
-  border-radius: 4px;
+  border-radius: 6px;
   cursor: pointer;
   font-size: 13px;
   font-weight: 600;
   font-family: 'Consolas', 'Monaco', monospace;
   text-transform: uppercase;
   letter-spacing: 1px;
-  transition: all 0.3s ease;
+  transition: all 0.2s ease;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
 
   &:hover:not(:disabled) {
-    background: rgba(0, 255, 255, 0.1);
-    border-color: #00ffff;
-    box-shadow: 0 0 20px rgba(0, 255, 255, 0.4);
-    text-shadow: 0 0 10px rgba(0, 255, 255, 0.8);
+    background: #F3F4F6;
+    border-color: #6366F1;
+    color: #4F46E5;
   }
 
   &:active:not(:disabled) {
@@ -373,9 +373,9 @@ const RefreshButton = styled.button`
     border-radius: 50%;
     padding: 0;
     font-size: 20px;
-    box-shadow: 0 0 25px rgba(0, 255, 255, 0.5);
+    box-shadow: 0 2px 8px rgba(99, 102, 241, 0.3);
     z-index: 1000;
-    background: rgba(0, 20, 40, 0.9);
+    background: #FFFFFF;
   }
 `;
 
@@ -430,8 +430,8 @@ const MapSection = styled.div`
 `;
 
 const Divider = styled.div`
-  width: 2px;
-  background: #333;
+  width: 1px;
+  background: #E5E7EB;
   flex-shrink: 0;
 `;
 
@@ -443,14 +443,14 @@ const ListSection = styled.div`
 
 const AirportTabNav = styled.div`
   display: flex;
-  gap: 12px;
+  gap: 8px;
   flex: 1;
   max-width: 600px;
 
   @media (max-width: 768px) {
-    background: rgba(10, 10, 15, 0.9);
+    background: #FFFFFF;
     padding: 8px 12px;
-    border-bottom: 1px solid rgba(0, 255, 255, 0.2);
+    border-bottom: 1px solid #E5E7EB;
     max-width: none;
   }
 `;
@@ -462,77 +462,53 @@ const AirportTab = styled.button<{ active: boolean }>`
   justify-content: center;
   gap: 8px;
   flex: 1;
-  padding: 12px 24px;
-  background: ${(props) => (props.active
-    ? 'linear-gradient(135deg, #00d4ff 0%, #0088bb 100%)'
-    : 'rgba(0, 212, 255, 0.05)')};
-  border: 2px solid ${(props) => (props.active
-    ? '#00d4ff'
-    : 'rgba(0, 212, 255, 0.3)')};
-  border-radius: 6px;
+  padding: 10px 20px;
+  background: ${(props) => (props.active ? '#6366F1' : '#FFFFFF')};
+  border: 1px solid ${(props) => (props.active ? '#6366F1' : '#E5E7EB')};
+  border-radius: 8px;
   cursor: pointer;
-  transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
-  box-shadow: ${(props) => (props.active
-    ? '0 0 30px rgba(0, 212, 255, 0.6), 0 0 60px rgba(0, 212, 255, 0.3), inset 0 0 30px rgba(0, 212, 255, 0.15)'
-    : 'none')};
-  position: relative;
-  overflow: hidden;
-
-  &::before {
-    content: '';
-    position: absolute;
-    top: 0;
-    left: -100%;
-    width: 100%;
-    height: 100%;
-    background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.2), transparent);
-    transition: left 0.5s ease;
-  }
+  transition: all 0.2s ease;
+  box-shadow: ${(props) => (props.active ? '0 2px 8px rgba(99, 102, 241, 0.25)' : '0 1px 3px rgba(0, 0, 0, 0.05)')};
 
   &:hover {
-    background: ${(props) => (props.active
-      ? 'linear-gradient(135deg, #00d4ff 0%, #0088bb 100%)'
-      : 'rgba(0, 212, 255, 0.15)')};
-    border-color: #00d4ff;
-    box-shadow: 0 0 25px rgba(0, 212, 255, 0.4);
-    transform: translateY(-2px);
-
-    &::before {
-      left: 100%;
-    }
+    background: ${(props) => (props.active ? '#4F46E5' : '#F9FAFB')};
+    border-color: ${(props) => (props.active ? '#4F46E5' : '#D1D5DB')};
   }
 
   &:active {
-    transform: translateY(0);
+    transform: scale(0.98);
   }
 
   @media (max-width: 768px) {
-    padding: 10px 16px;
+    padding: 8px 14px;
   }
 `;
 
 const AirportTabName = styled.span`
-  font-size: 20px;
-  font-weight: 700;
-  color: white;
-  letter-spacing: 3px;
-  font-family: 'Consolas', 'Monaco', monospace;
-  text-shadow: 0 0 10px rgba(255, 255, 255, 0.3);
+  font-size: 16px;
+  font-weight: 600;
+  color: inherit;
+  letter-spacing: 1px;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+
+  ${AirportTab}[active] & {
+    color: white;
+  }
 
   @media (max-width: 768px) {
-    font-size: 16px;
+    font-size: 14px;
   }
 `;
 
 const AirportTabCode = styled.span`
-  font-size: 13px;
-  color: rgba(0, 255, 255, 0.9);
-  font-weight: 600;
+  font-size: 12px;
+  color: inherit;
+  font-weight: 500;
   font-family: 'Consolas', 'Monaco', monospace;
-  text-shadow: 0 0 8px rgba(0, 255, 255, 0.5);
+  opacity: 0.8;
 
   @media (max-width: 768px) {
-    font-size: 11px;
+    font-size: 10px;
   }
 `;
 
@@ -546,17 +522,17 @@ const TabNav = styled.div`
 const Tab = styled.button<{ active: boolean }>`
   flex: 1;
   padding: 14px;
-  background: ${(props) => (props.active ? 'white' : '#f5f5f5')};
+  background: ${(props) => (props.active ? '#FFFFFF' : '#F9FAFB')};
   border: none;
-  border-bottom: 3px solid ${(props) => (props.active ? '#667eea' : 'transparent')};
+  border-bottom: 3px solid ${(props) => (props.active ? '#6366F1' : 'transparent')};
   font-size: 16px;
   font-weight: ${(props) => (props.active ? '600' : '400')};
-  color: ${(props) => (props.active ? '#667eea' : '#7f8c8d')};
+  color: ${(props) => (props.active ? '#6366F1' : '#6B7280')};
   cursor: pointer;
   transition: all 0.2s;
 
   &:hover {
-    background: ${(props) => (props.active ? 'white' : '#eeeeee')};
+    background: ${(props) => (props.active ? '#FFFFFF' : '#F3F4F6')};
   }
 `;
 
@@ -574,19 +550,20 @@ const MobileHeaderRight = styled.div`
 `;
 
 const MobileMenuButton = styled.button`
-  background: transparent;
-  border: 1px solid rgba(0, 212, 255, 0.5);
-  color: #00d4ff;
+  background: #FFFFFF;
+  border: 1px solid #E5E7EB;
+  color: #6366F1;
   width: 44px;
   height: 44px;
-  border-radius: 6px;
+  border-radius: 8px;
   font-size: 20px;
   cursor: pointer;
   transition: all 0.2s ease;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
 
   &:hover {
-    background: rgba(0, 212, 255, 0.15);
-    box-shadow: 0 0 15px rgba(0, 212, 255, 0.4);
+    background: #F9FAFB;
+    border-color: #6366F1;
   }
 `;
 
@@ -595,14 +572,14 @@ const MobileMenu = styled.div`
   top: 100%;
   left: 0;
   right: 0;
-  background: rgba(10, 15, 25, 0.95);
-  backdrop-filter: blur(10px);
-  border-bottom: 1px solid rgba(0, 212, 255, 0.3);
+  background: #FFFFFF;
+  border-bottom: 1px solid #E5E7EB;
   padding: 16px;
   z-index: 100;
   display: flex;
   flex-direction: column;
   gap: 16px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
   animation: slideDown 0.2s ease;
 
   @keyframes slideDown {
@@ -625,7 +602,7 @@ const MobileMenuSection = styled.div`
 
 const MobileMenuLabel = styled.span`
   font-size: 11px;
-  color: rgba(0, 212, 255, 0.6);
+  color: #6B7280;
   font-family: 'Consolas', 'Monaco', monospace;
   text-transform: uppercase;
   letter-spacing: 1px;
@@ -638,28 +615,28 @@ const MobileLangButtons = styled.div`
 
 const MobileLangButton = styled.button<{ active: boolean }>`
   flex: 1;
-  background: ${props => props.active ? 'rgba(0, 212, 255, 0.3)' : 'rgba(0, 212, 255, 0.05)'};
-  border: 1px solid ${props => props.active ? '#00d4ff' : 'rgba(0, 212, 255, 0.3)'};
-  color: ${props => props.active ? '#00d4ff' : 'rgba(255, 255, 255, 0.7)'};
+  background: ${props => props.active ? '#6366F1' : '#F9FAFB'};
+  border: 1px solid ${props => props.active ? '#6366F1' : '#E5E7EB'};
+  color: ${props => props.active ? '#FFFFFF' : '#374151'};
   padding: 12px 16px;
-  border-radius: 6px;
+  border-radius: 8px;
   font-size: 14px;
   cursor: pointer;
   transition: all 0.2s ease;
   min-height: 44px;
 
   &:hover {
-    border-color: #00d4ff;
-    background: rgba(0, 212, 255, 0.15);
+    border-color: #6366F1;
+    background: ${props => props.active ? '#4F46E5' : '#F3F4F6'};
   }
 `;
 
 const HelpButton = styled.button`
-  background: rgba(0, 212, 255, 0.1);
-  border: 1px solid rgba(0, 212, 255, 0.3);
-  color: rgba(255, 255, 255, 0.8);
+  background: #F9FAFB;
+  border: 1px solid #E5E7EB;
+  color: #374151;
   padding: 12px 16px;
-  border-radius: 6px;
+  border-radius: 8px;
   font-size: 14px;
   cursor: pointer;
   transition: all 0.2s ease;
@@ -667,16 +644,16 @@ const HelpButton = styled.button`
   text-align: left;
 
   &:hover {
-    border-color: #00d4ff;
-    color: #00d4ff;
-    background: rgba(0, 212, 255, 0.15);
+    border-color: #6366F1;
+    color: #6366F1;
+    background: #F3F4F6;
   }
 `;
 
 const DesktopHelpButton = styled.button`
-  background: transparent;
-  border: 1px solid rgba(0, 212, 255, 0.4);
-  color: #00d4ff;
+  background: #FFFFFF;
+  border: 1px solid #E5E7EB;
+  color: #6366F1;
   width: 32px;
   height: 32px;
   border-radius: 50%;
@@ -685,10 +662,11 @@ const DesktopHelpButton = styled.button`
   cursor: pointer;
   transition: all 0.2s ease;
   font-family: 'Consolas', 'Monaco', monospace;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
 
   &:hover {
-    background: rgba(0, 212, 255, 0.15);
-    box-shadow: 0 0 15px rgba(0, 212, 255, 0.4);
+    background: #F9FAFB;
+    border-color: #6366F1;
   }
 `;
 
@@ -708,14 +686,14 @@ const FullscreenHint = styled.div`
   bottom: 20px;
   left: 50%;
   transform: translateX(-50%);
-  background: rgba(0, 0, 0, 0.7);
-  color: rgba(0, 255, 255, 0.8);
+  background: rgba(255, 255, 255, 0.95);
+  color: #374151;
   padding: 8px 16px;
-  border-radius: 4px;
+  border-radius: 6px;
   font-size: 12px;
   font-family: 'Consolas', 'Monaco', monospace;
   pointer-events: none;
-  opacity: 0.8;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
   animation: fadeOut 3s forwards;
   animation-delay: 2s;
 
@@ -727,18 +705,19 @@ const FullscreenHint = styled.div`
 `;
 
 const FullscreenButton = styled.button`
-  background: transparent;
-  border: 1px solid rgba(0, 212, 255, 0.4);
-  color: #00d4ff;
+  background: #FFFFFF;
+  border: 1px solid #E5E7EB;
+  color: #6366F1;
   width: 32px;
   height: 32px;
-  border-radius: 4px;
+  border-radius: 6px;
   font-size: 16px;
   cursor: pointer;
   transition: all 0.2s ease;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
 
   &:hover {
-    background: rgba(0, 212, 255, 0.15);
-    box-shadow: 0 0 15px rgba(0, 212, 255, 0.4);
+    background: #F9FAFB;
+    border-color: #6366F1;
   }
 `;
