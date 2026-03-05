@@ -357,7 +357,7 @@ app.get('/api/adsb/aircraft', async (req, res) => {
   // 转换为与 OpenSky 兼容的格式
   const states = aircraft.map(ac => ({
     icao24: ac.hex,
-    callsign: ac.flight?.trim() || null,
+    callsign: ac.flight?.trim().replace(/\s+/g, '') || null,
     origin_country: ac.r ? getCountryFromReg(ac.r) : 'Unknown',
     latitude: ac.lat,
     longitude: ac.lon,
