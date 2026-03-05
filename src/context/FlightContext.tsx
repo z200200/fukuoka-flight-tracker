@@ -539,14 +539,14 @@ export function FlightProvider({ children }: FlightProviderProps) {
     return () => clearInterval(interval);
   }, [flights, fetchAllTracksAdsbLol, isPageVisible]);
 
-  // 使用 HexDB.io 查询航线信息（包括实时飞机和航班列表）
+  // 使用 HexDB.io 查询航线信息（只查询实时飞机的航线，时刻表航班已有起降信息）
   useEffect(() => {
     const fetchRoutes = async () => {
-      // 收集所有需要查询的呼号（未查询过的）
+      // 只收集实时飞机的呼号（未查询过的）
+      // 时刻表航班已经有 origin/destination 信息，不需要再查询 HexDB
       const callsignsToFetch: string[] = [];
 
-      // 从实时飞机收集呼号
-      // 收集呼号时使用规范化格式检查
+      // 只从实时飞机收集呼号
       flights.forEach(f => {
         const normalized = normalizeCallsign(f.callsign);
         if (normalized && !fetchedRoutesRef.current.has(normalized)) {
@@ -554,24 +554,8 @@ export function FlightProvider({ children }: FlightProviderProps) {
         }
       });
 
-      // 从到达航班收集呼号（ScheduledFlight 使用 flightNumber）
-      arrivals.forEach(f => {
-        const normalized = normalizeCallsign(f.flightNumber);
-        if (normalized && !fetchedRoutesRef.current.has(normalized)) {
-          callsignsToFetch.push(f.flightNumber!);
-        }
-      });
-
-      // 从出发航班收集呼号（ScheduledFlight 使用 flightNumber）
-      departures.forEach(f => {
-        const normalized = normalizeCallsign(f.flightNumber);
-        if (normalized && !fetchedRoutesRef.current.has(normalized)) {
-          callsignsToFetch.push(f.flightNumber!);
-        }
-      });
-
-      // 去重
-      const uniqueCallsigns = [...new Set(callsignsToFetch)];
+      // 去重并限制数量（避免 URL 过长）
+      const uniqueCallsigns = [...new Set(callsignsToFetch)].slice(0, 50);
       if (uniqueCallsigns.length === 0) return;
 
       // 标记为已查询（使用规范化格式）
@@ -581,7 +565,7 @@ export function FlightProvider({ children }: FlightProviderProps) {
       });
 
       try {
-        console.log(`[FlightContext] Fetching routes for ${uniqueCallsigns.length} callsigns...`);
+        console.log(`[FlightContext] Fetching routes for ${uniqueCallsigns.length} callsigns (from ${flights.length} aircraft)...`);
 
         // 1. 先从 HexDB.io 获取
         const routes = await fetchRoutesByCallsigns(uniqueCallsigns);

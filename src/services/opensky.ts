@@ -140,12 +140,29 @@ export class OpenSkyClient {
     return response.data;
   }
 
-  // 批量获取航线信息
+  // 批量获取航线信息（分批请求，避免 URL 过长）
   async getRoutesByCallsigns(callsigns: string[]): Promise<{ routes: Record<string, RouteInfo>; count: number }> {
-    const response = await this.axiosInstance.get('/routes', {
-      params: { callsigns: callsigns.join(',') }
-    });
-    return response.data;
+    // 服务器限制每次最多 50 个，URL 长度限制约 2KB
+    // 每个 callsign 约 8 字符 + 逗号，50 个约 450 字符，安全
+    const BATCH_SIZE = 50;
+    const allRoutes: Record<string, RouteInfo> = {};
+
+    // 分批请求
+    for (let i = 0; i < callsigns.length; i += BATCH_SIZE) {
+      const batch = callsigns.slice(i, i + BATCH_SIZE);
+      try {
+        const response = await this.axiosInstance.get('/routes', {
+          params: { callsigns: batch.join(',') }
+        });
+        if (response.data?.routes) {
+          Object.assign(allRoutes, response.data.routes);
+        }
+      } catch (error) {
+        console.warn(`[OpenSkyClient] Failed to fetch routes batch ${i / BATCH_SIZE + 1}:`, error);
+      }
+    }
+
+    return { routes: allRoutes, count: Object.keys(allRoutes).length };
   }
 
   // ========== 机场时刻表爬虫 API ==========
