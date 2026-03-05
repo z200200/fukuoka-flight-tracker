@@ -27,6 +27,9 @@ const AIRPORT_ICAO = {
 	HND: 'RJTT',  // 羽田
 	NRT: 'RJAA',  // 成田
 	ICN: 'RKSI',  // 仁川
+	PVG: 'ZSPD',  // 上海浦东
+	SHA: 'ZSSS',  // 上海虹桥
+	DLC: 'ZYTL',  // 大连
 };
 
 // ========== API 调用函数 ==========
@@ -213,7 +216,7 @@ function formatDisplayTime(localTimeString) {
 }
 
 // ========== 匹配航班（根据呼号查找时刻表信息）==========
-export async function matchFlight(callsign, airports = ['FUK', 'HND', 'NRT', 'ICN']) {
+export async function matchFlight(callsign, airports = ['FUK', 'HND', 'NRT', 'ICN', 'PVG', 'SHA', 'DLC']) {
 	if (!callsign) return null;
 
 	const cleanCallsign = callsign.trim().toUpperCase().replace(/\s/g, '');
@@ -289,6 +292,9 @@ export function getSupportedAirports() {
 			HND: '羽田',
 			NRT: '成田',
 			ICN: '仁川',
+			PVG: '上海浦东',
+			SHA: '上海虹桥',
+			DLC: '大连',
 		}[code],
 	}));
 }
