@@ -199,17 +199,42 @@ export function FlightProvider({ children }: FlightProviderProps) {
   const [nextRescanSeconds] = useState(-1); // 移除 setter，航班列表不会自动刷新
 
   // 扫描飞机列表（初次加载或重新扫描时调用）
-  // 始终使用机场固定半径，确保显示稳定
+  // 使用地图视野范围获取飞机，如果没有视野范围则使用机场默认半径
   const scanAircraft = useCallback(async () => {
     if (document.hidden) return;
 
     try {
-      console.log(`[FlightContext] Scanning aircraft for ${currentAirport.name}...`);
+      // 计算获取半径：使用地图视野范围或默认机场半径
+      let fetchRadius = Math.round(currentAirport.radiusKm * 1.2);
+      let fetchLat = currentAirport.latitude;
+      let fetchLon = currentAirport.longitude;
+
+      if (mapBounds) {
+        // 使用地图视野范围的中心和对角线距离作为半径
+        fetchLat = (mapBounds.lamin + mapBounds.lamax) / 2;
+        fetchLon = (mapBounds.lomin + mapBounds.lomax) / 2;
+
+        // 计算视野对角线距离（km）作为半径
+        const latDiff = mapBounds.lamax - mapBounds.lamin;
+        const lonDiff = mapBounds.lomax - mapBounds.lomin;
+        // 简化的距离计算：1度纬度≈111km, 1度经度≈111km*cos(lat)
+        const latKm = latDiff * 111;
+        const lonKm = lonDiff * 111 * Math.cos(fetchLat * Math.PI / 180);
+        const diagonalKm = Math.sqrt(latKm * latKm + lonKm * lonKm);
+        fetchRadius = Math.round(diagonalKm / 2 * 1.2); // 对角线的一半再加20%余量
+
+        // 限制最大范围（adsb.lol API 限制）
+        fetchRadius = Math.min(fetchRadius, 450); // 最大450km
+
+        console.log(`[FlightContext] Using map bounds: center(${fetchLat.toFixed(2)}, ${fetchLon.toFixed(2)}), radius=${fetchRadius}km`);
+      }
+
+      console.log(`[FlightContext] Scanning aircraft for ${currentAirport.name}, radius=${fetchRadius}km...`);
 
       const adsbResponse = await fetchAircraftAdsbLol(
-        currentAirport.latitude,
-        currentAirport.longitude,
-        Math.round(currentAirport.radiusKm * 1.2)
+        fetchLat,
+        fetchLon,
+        fetchRadius
       );
 
       if (adsbResponse?.states && Array.isArray(adsbResponse.states)) {
@@ -254,7 +279,7 @@ export function FlightProvider({ children }: FlightProviderProps) {
     } catch (err) {
       console.error('[FlightContext] Failed to scan aircraft:', err);
     }
-  }, [currentAirport, fetchAircraftAdsbLol]);
+  }, [currentAirport, fetchAircraftAdsbLol, mapBounds]);
 
   // 更新已锁定飞机的位置（不改变飞机数量）
   const updatePositions = useCallback(async () => {

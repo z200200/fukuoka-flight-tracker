@@ -53,12 +53,14 @@ const translations = {
     fukuoka: '福冈',
     tokyo: '东京',
     incheon: '首尔',
+    shanghai: '上海',
+    dalian: '大连',
 
     // Welcome modal
     title: 'Flight Tracker',
     subtitle: '实时航班追踪系统',
     about: '// 关于',
-    aboutText: '这是一个实时航班追踪应用，可以查看福冈、东京（成田+羽田）、首尔仁川三大机场周边的航班动态。',
+    aboutText: '这是一个实时航班追踪应用，可以查看福冈、东京、首尔、上海、大连等机场周边的航班动态。',
     features: '// 功能',
     feature1: '实时追踪 - 每10秒自动刷新飞机位置',
     feature2: '航迹显示 - 渐变颜色显示飞行轨迹',
@@ -116,12 +118,14 @@ const translations = {
     fukuoka: '福岡',
     tokyo: '東京',
     incheon: 'ソウル',
+    shanghai: '上海',
+    dalian: '大連',
 
     // Welcome modal
     title: 'Flight Tracker',
     subtitle: 'リアルタイム航空追跡システム',
     about: '// 概要',
-    aboutText: 'このアプリは福岡、東京（成田+羽田）、ソウル仁川の空港周辺のフライト状況をリアルタイムで追跡できます。',
+    aboutText: 'このアプリは福岡、東京、ソウル、上海、大連などの空港周辺のフライト状況をリアルタイムで追跡できます。',
     features: '// 機能',
     feature1: 'リアルタイム追跡 - 10秒ごとに自動更新',
     feature2: '軌跡表示 - グラデーションで飛行経路を表示',
@@ -179,12 +183,14 @@ const translations = {
     fukuoka: 'Fukuoka',
     tokyo: 'Tokyo',
     incheon: 'Seoul',
+    shanghai: 'Shanghai',
+    dalian: 'Dalian',
 
     // Welcome modal
     title: 'Flight Tracker',
     subtitle: 'Real-time Flight Tracking System',
     about: '// ABOUT',
-    aboutText: 'A real-time flight tracking app for monitoring flights around Fukuoka, Tokyo (Narita+Haneda), and Seoul Incheon airports.',
+    aboutText: 'A real-time flight tracking app for monitoring flights around Fukuoka, Tokyo, Seoul, Shanghai, and Dalian airports.',
     features: '// FEATURES',
     feature1: 'Live Tracking - Auto-refresh every 10 seconds',
     feature2: 'Flight Trails - Gradient colors show flight paths',

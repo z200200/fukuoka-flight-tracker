@@ -71,6 +71,44 @@ export const AIRPORTS: Record<string, AirportConfig> = {
 		radiusKm: 100,
 		description: "韩国最大国际机场",
 	},
+	shanghai: {
+		id: "shanghai",
+		name: "上海",
+		fullName: "上海机场（浦东+虹桥）",
+		icao: "ZSPD/ZSSS",
+		iata: "PVG/SHA",
+		latitude: 31.1443,  // 两机场中心点
+		longitude: 121.6145,
+		radiusKm: 100,
+		description: "上海浦东+虹桥国际机场",
+		subAirports: [
+			{
+				name: "浦东",
+				icao: "ZSPD",
+				iata: "PVG",
+				latitude: 31.1443,
+				longitude: 121.8083,
+			},
+			{
+				name: "虹桥",
+				icao: "ZSSS",
+				iata: "SHA",
+				latitude: 31.1979,
+				longitude: 121.3364,
+			},
+		],
+	},
+	dalian: {
+		id: "dalian",
+		name: "大连",
+		fullName: "大连周水子国际机场",
+		icao: "ZYTL",
+		iata: "DLC",
+		latitude: 38.9657,
+		longitude: 121.5386,
+		radiusKm: 100,
+		description: "中国东北重要国际机场",
+	},
 };
 
 export const DEFAULT_AIRPORT = "fukuoka";

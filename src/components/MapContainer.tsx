@@ -311,14 +311,15 @@ const createPlaneIcon = (
 };
 
 export function MapContainer() {
-  const { flights, selectedFlight, currentAirport, flightTracks, flightRoutes, arrivals, departures } = useFlightContext();
+  const { flights, selectedFlight, currentAirport, flightTracks, flightRoutes, arrivals, departures, setMapBounds } = useFlightContext();
   const { t } = useLanguage();
 
-  // Handle map bounds change - just log for debugging, no API calls
-  const handleBoundsChange = useCallback((_bounds: { lamin: number; lamax: number; lomin: number; lomax: number }) => {
-    // 不再触发任何 API 调用，只用于调试
+  // Handle map bounds change - update context for aircraft fetching
+  const handleBoundsChange = useCallback((bounds: { lamin: number; lamax: number; lomin: number; lomax: number }) => {
+    // 更新地图范围，用于刷新时获取飞机
+    setMapBounds(bounds);
     // console.log('[MapContainer] Bounds changed:', bounds);
-  }, []);
+  }, [setMapBounds]);
 
   // Helper: calculate distance between two points (in km)
   const getDistance = (lat1: number, lon1: number, lat2: number, lon2: number): number => {
@@ -358,6 +359,7 @@ export function MapContainer() {
   }, [flights]);
 
   // Generate real flight tracks from track data
+  // 只显示蓝圈（机场半径）范围内的飞机轨迹
   const realFlightTracks = useMemo(() => {
     const tracks: Array<{
       icao24: string;
@@ -366,6 +368,19 @@ export function MapContainer() {
     }> = [];
 
     airborneFlights.forEach((flight) => {
+      // 计算飞机与机场的距离
+      const distanceToAirport = getDistance(
+        flight.latitude,
+        flight.longitude,
+        currentAirport.latitude,
+        currentAirport.longitude
+      );
+
+      // 蓝圈外的飞机不显示轨迹
+      if (distanceToAirport > currentAirport.radiusKm) {
+        return; // 跳过，不添加轨迹
+      }
+
       const trackData = flightTracks.get(flight.icao24);
       if (trackData && trackData.length > 1) {
         // Use real track data - 只保留最近40个点，避免轨迹过长
@@ -378,28 +393,16 @@ export function MapContainer() {
           hasTrack: true,
         });
       } else {
-        // Check if aircraft is within the tracking radius before drawing estimated route
-        const distanceToAirport = getDistance(
-          flight.latitude,
-          flight.longitude,
-          currentAirport.latitude,
-          currentAirport.longitude
-        );
-
-        // Only draw orange estimated line for aircraft within the tracking circle
-        if (distanceToAirport <= currentAirport.radiusKm) {
-          // Fallback: draw line from nearest airport to current position
-          const airportCoords = getNearestAirportCoords(flight.latitude, flight.longitude);
-          tracks.push({
-            icao24: flight.icao24,
-            positions: [
-              airportCoords,
-              [flight.latitude, flight.longitude] as [number, number],
-            ],
-            hasTrack: false,
-          });
-        }
-        // Aircraft outside the circle: no estimated route line, but still shown on map
+        // 估算轨迹：从机场到当前位置的虚线
+        const airportCoords = getNearestAirportCoords(flight.latitude, flight.longitude);
+        tracks.push({
+          icao24: flight.icao24,
+          positions: [
+            airportCoords,
+            [flight.latitude, flight.longitude] as [number, number],
+          ],
+          hasTrack: false,
+        });
       }
     });
 
