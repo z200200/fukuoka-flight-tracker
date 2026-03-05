@@ -311,7 +311,8 @@ export function FlightProvider({ children }: FlightProviderProps) {
         // adsb.lol API 每次返回的飞机集合可能完全不同
         const newPositions = new Map<string, typeof states[0]>();
         states.forEach(s => {
-          if (s.icao24 && s.latitude && s.longitude && !s.on_ground) {
+          // 移除 on_ground 过滤，因为有些飞机在低空时也可能被标记为 on_ground
+          if (s.icao24 && s.latitude && s.longitude) {
             newPositions.set(s.icao24, s);
           }
         });
