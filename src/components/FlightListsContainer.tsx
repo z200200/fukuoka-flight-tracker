@@ -11,6 +11,17 @@ const IATA_TO_ICAO: Record<string, string> = {
   // 中国
   'MU': 'CES', 'CA': 'CCA', 'CZ': 'CSN', 'HU': 'CHH', 'SC': 'CDG',
   '3U': 'CSC', 'MF': 'CXA', 'ZH': 'CSZ', '9C': 'CQH',
+  // 中国航空公司补充
+  'HO': 'DKH',  // 吉祥航空 Juneyao Airlines
+  'FM': 'CSH',  // 上海航空 Shanghai Airlines
+  'KN': 'CUA',  // 中国联合航空 China United Airlines
+  'TV': 'TBA',  // 西藏航空 Tibet Airlines
+  '8L': 'LKE',  // 祥鹏航空 Lucky Air
+  'EU': 'UEA',  // 成都航空 Chengdu Airlines
+  'GS': 'GCR',  // 天津航空 Tianjin Airlines
+  'NS': 'XBH',  // 河北航空 Hebei Airlines
+  'Y8': 'YZR',  // 扬子江快运 Yangtze River Express
+  'JD': 'CBJ',  // 北京首都航空 Capital Airlines
   // 韩国
   'KE': 'KAL', 'OZ': 'AAR', 'LJ': 'JNA', 'TW': 'TWB', 'BX': 'ABL',
   '7C': 'JJA', 'ZE': 'ESR', 'RF': 'EOK',

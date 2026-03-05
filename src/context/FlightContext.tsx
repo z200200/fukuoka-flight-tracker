@@ -310,10 +310,18 @@ export function FlightProvider({ children }: FlightProviderProps) {
         // 只更新已锁定的飞机
         const newPositions = new Map<string, typeof states[0]>();
         states.forEach(s => {
+          // 首先尝试 ICAO24 匹配
           if (lockedIcaosRef.current.has(s.icao24)) {
             newPositions.set(s.icao24, s);
           }
         });
+
+        // 如果匹配太少，记录调试信息
+        if (newPositions.size === 0 && states.length > 0) {
+          console.log('[FlightContext] ICAO24 match failed. Locked:',
+            Array.from(lockedIcaosRef.current).slice(0, 5),
+            'Received:', states.slice(0, 5).map(s => s.icao24));
+        }
 
         setFlights(prev => {
           return prev.map(flight => {

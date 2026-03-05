@@ -401,15 +401,33 @@ function normalizeCallsign(callsign: string | null | undefined): string | null {
 
 // IATA → ICAO 航空公司代码映射表
 const IATA_TO_ICAO: Record<string, string> = {
+  // 日本
   'JL': 'JAL', 'NH': 'ANA', 'BC': 'SKY', 'JQ': 'JJP', 'MM': 'APJ',
   'GK': 'JJA', 'NU': 'JTA', 'HD': 'ADO', '7G': 'SFJ', 'FW': 'IBX', 'DJ': 'FDA',
+  // 中国
   'MU': 'CES', 'CA': 'CCA', 'CZ': 'CSN', 'HU': 'CHH', 'SC': 'CDG',
   '3U': 'CSC', 'MF': 'CXA', 'ZH': 'CSZ', '9C': 'CQH',
+  // 中国航空公司补充
+  'HO': 'DKH',  // 吉祥航空 Juneyao Airlines
+  'FM': 'CSH',  // 上海航空 Shanghai Airlines
+  'KN': 'CUA',  // 中国联合航空 China United Airlines
+  'TV': 'TBA',  // 西藏航空 Tibet Airlines
+  '8L': 'LKE',  // 祥鹏航空 Lucky Air
+  'EU': 'UEA',  // 成都航空 Chengdu Airlines
+  'GS': 'GCR',  // 天津航空 Tianjin Airlines
+  'NS': 'XBH',  // 河北航空 Hebei Airlines
+  'Y8': 'YZR',  // 扬子江快运 Yangtze River Express
+  'JD': 'CBJ',  // 北京首都航空 Capital Airlines
+  // 韩国
   'KE': 'KAL', 'OZ': 'AAR', 'LJ': 'JNA', 'TW': 'TWB', 'BX': 'ABL',
   '7C': 'JJA', 'ZE': 'ESR', 'RF': 'EOK',
+  // 台湾/香港
   'BR': 'EVA', 'CI': 'CAL', 'IT': 'TTW', 'CX': 'CPA', 'HX': 'CRK', 'UO': 'HKE',
+  // 东南亚
   'SQ': 'SIA', 'TG': 'THA', 'VN': 'HVN', 'VJ': 'VJC', 'QF': 'QFA', 'PR': 'PAL',
+  // 欧美
   'AA': 'AAL', 'UA': 'UAL', 'DL': 'DAL', 'AF': 'AFR', 'BA': 'BAW', 'LH': 'DLH',
+  // 货运
   'FX': 'FDX', '5X': 'UPS',
 };
 
