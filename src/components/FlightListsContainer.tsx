@@ -53,6 +53,14 @@ export function FlightListsContainer() {
     const iataNumber = normalizeCallsign(scheduledFlight.flightNumber);
     const icaoNumber = convertIataToIcao(scheduledFlight.flightNumber);
 
+    console.log('[FlightListsContainer] Selecting flight:', {
+      flightNumber: scheduledFlight.flightNumber,
+      iataNumber,
+      icaoNumber,
+      flightsCount: flights.length,
+      flightCallsigns: flights.slice(0, 5).map(f => f.callsign)
+    });
+
     if (icaoNumber || iataNumber) {
       // 优先匹配 ICAO 格式，其次匹配 IATA 格式
       const matchingFlight = flights.find(f => {
@@ -60,9 +68,11 @@ export function FlightListsContainer() {
         return callsign === icaoNumber || callsign === iataNumber;
       });
       if (matchingFlight) {
+        console.log('[FlightListsContainer] Found matching flight:', matchingFlight.icao24, matchingFlight.callsign);
         selectFlight(matchingFlight);
         return;
       }
+      console.log('[FlightListsContainer] No matching flight found');
     }
     // 没有找到对应的雷达数据（飞机可能还未起飞或已降落）
     selectFlight(null);
