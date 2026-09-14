@@ -128,7 +128,8 @@ export class OpenSkyClient {
   }
 
   // 获取所有缓存的航迹
-  async getAllTracksFromAdsbLol(): Promise<{ tracks: Record<string, [number, number][]>; count: number }> {
+  // 每个点是 [lat, lon, epochMs]，第三项是服务端记录该点时的真实时间戳（毫秒）
+  async getAllTracksFromAdsbLol(): Promise<{ tracks: Record<string, [number, number, number][]>; count: number }> {
     const response = await this.axiosInstance.get('/adsb/tracks');
     return response.data;
   }

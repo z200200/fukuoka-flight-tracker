@@ -40,7 +40,7 @@ interface UseOpenSkyApiResult {
     radiusNm?: number
   ) => Promise<StatesResponse | null>;
   fetchTrackAdsbLol: (icao24: string) => Promise<FlightTrack | null>;
-  fetchAllTracksAdsbLol: () => Promise<{ tracks: Record<string, [number, number][]>; count: number } | null>;
+  fetchAllTracksAdsbLol: () => Promise<{ tracks: Record<string, [number, number, number][]>; count: number } | null>;
   // HexDB.io route lookup
   fetchRoutesByCallsigns: (callsigns: string[]) => Promise<Record<string, RouteInfo> | null>;
   // 机场时刻表爬虫
@@ -270,7 +270,7 @@ export function useOpenSkyApi(): UseOpenSkyApiResult {
   );
 
   const fetchAllTracksAdsbLol = useCallback(
-    async (): Promise<{ tracks: Record<string, [number, number][]>; count: number } | null> => {
+    async (): Promise<{ tracks: Record<string, [number, number, number][]>; count: number } | null> => {
       if (!clientRef.current) {
         return null;
       }

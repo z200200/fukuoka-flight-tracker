@@ -498,8 +498,12 @@ export function FlightProvider({ children }: FlightProviderProps) {
               const limitedPoints = points.slice(-MAX_TRACK_POINTS);
 
               // 转换为 TrackWaypoint 格式
-              const waypoints: TrackWaypoint[] = limitedPoints.map((p: [number, number], i: number) => ({
-                time: Math.floor(Date.now() / 1000) - (limitedPoints.length - i) * 30,
+              // 实测发现的真实bug：以前假设每个点固定间隔30秒来编造time字段，但服务端
+              // 实际的缓存追加规则是"距上一点超过5秒才追加"，真实间隔从5秒到几分钟都可能——
+              // 假设的30秒和真实间隔差距一大，后续"距离÷时间差"算出来的速度就会离谱飙高，
+              // 地图上渲染成大片"极速"红线。现在服务端会把真实时间戳p[2]一起传回来，直接用。
+              const waypoints: TrackWaypoint[] = limitedPoints.map((p: [number, number, number]) => ({
+                time: Math.floor((p[2] ?? Date.now()) / 1000),
                 latitude: p[0],
                 longitude: p[1],
                 baro_altitude: null,

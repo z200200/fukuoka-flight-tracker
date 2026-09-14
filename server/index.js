@@ -177,10 +177,12 @@ function updateTrackCache(aircraft) {
 }
 
 // ADSB.LOL API 请求
-async function fetchAdsbLol(lat, lon, dist) {
+// 实测发现的真实情况：曾经出现过一次偶发500(adsb.lol/网络瞬时故障)，几秒后重新请求就恢复了。
+// 加一次重试，避免这种瞬时抖动直接让地图整体空白（原来失败一次就彻底放弃返回null）。
+async function fetchAdsbLol(lat, lon, dist, attempt = 1) {
+  const url = `https://api.adsb.lol/v2/point/${lat}/${lon}/${dist}`;
   try {
-    const url = `https://api.adsb.lol/v2/point/${lat}/${lon}/${dist}`;
-    console.log(`[ADSB.LOL] Fetching: ${url}`);
+    console.log(`[ADSB.LOL] Fetching: ${url} (attempt ${attempt})`);
 
     const response = await axios.get(url, { timeout: 15000 });
     const aircraft = response.data.ac || [];
@@ -191,7 +193,11 @@ async function fetchAdsbLol(lat, lon, dist) {
     console.log(`[ADSB.LOL] Got ${aircraft.length} aircraft, cache has ${trackCache.size} tracks`);
     return aircraft;
   } catch (error) {
-    console.error(`[ADSB.LOL] Error: ${error.message}`);
+    console.error(`[ADSB.LOL] Error (attempt ${attempt}): ${error.message}`);
+    if (attempt < 2) {
+      await new Promise(resolve => setTimeout(resolve, 1000));
+      return fetchAdsbLol(lat, lon, dist, attempt + 1);
+    }
     return null;
   }
 }
@@ -354,11 +360,16 @@ app.get('/api/adsb/track/:icao', (req, res) => {
 });
 
 // 获取所有缓存的航迹（用于批量显示）
+// 实测发现的真实bug：原来只传[lat,lon]，丢弃了真实采集时间戳。前端按"假设每点间隔30秒"
+// 补时间戳算速度——但本缓存的真实追加规则是"距上一点超过5秒才追加"（见updateTrackCache），
+// 实际间隔从5秒到几分钟都可能（尤其飞机架次多、共享500条缓存槽位被挤占时），一旦真实间隔
+// 远大于假设的30秒，"距离÷假设时间"算出的速度会离谱飙高，地图上就渲染成满屏"极速"红线。
+// 把真实时间戳一起传回去，前端就不用瞎猜。
 app.get('/api/adsb/tracks', (req, res) => {
   const tracks = {};
   for (const [icao, points] of trackCache.entries()) {
     if (points.length >= 2) { // 至少2个点才算航迹
-      tracks[icao] = points.map(p => [p.lat, p.lon]);
+      tracks[icao] = points.map(p => [p.lat, p.lon, p.time]);
     }
   }
   res.json({ tracks, count: Object.keys(tracks).length });
