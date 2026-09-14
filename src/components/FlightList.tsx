@@ -632,6 +632,7 @@ export function FlightList({ title, flights, selectedFlight, onSelect, type, cur
                 <FlightHeader>
                   <FlightInfoWrapper>
                     <Callsign>{(flight.flightNumber || '-').replace(/\s+/g, '')}</Callsign>
+                    {flight.sourceType === 'official' && <SourceBadge>{t.officialSource}</SourceBadge>}
                     {(() => {
                       // 显示出发地（到达航班）或目的地（出发航班）+ 国家
                       if (type === 'arrival' && flight.origin) {
@@ -654,19 +655,34 @@ export function FlightList({ title, flights, selectedFlight, onSelect, type, cur
                       <Airline>{getAirline(flight.flightNumber, lang)}</Airline>
                     )}
                   </FlightInfoWrapper>
-                  {/* 显示计划时间和状态 */}
-                  {flight.scheduledTime && (
-                    <Time $hasSchedule={true}>
-                      {flight.scheduledTime}
-                      {flight.status && <Status $status={flight.status}>{flight.status}</Status>}
-                    </Time>
-                  )}
+                  {/* 显示计划时间和状态；实际/预估时间与计划时间不同则标注变化，仅当真的更晚才算"延误" */}
+                  {flight.scheduledTime && (() => {
+                    const hasTimeChange = !!flight.actualTime && flight.actualTime !== flight.scheduledTime;
+                    const scheduledMin = parseTimeToMinutes(flight.scheduledTime);
+                    const actualMin = parseTimeToMinutes(flight.actualTime);
+                    const isLate = hasTimeChange && scheduledMin !== null && actualMin !== null && actualMin > scheduledMin;
+                    return (
+                      <Time $hasSchedule={true}>
+                        {hasTimeChange ? (
+                          <DelayRow>
+                            <ScheduledStrike>{flight.scheduledTime}</ScheduledStrike>
+                            <DelayedTime>→ {flight.actualTime}</DelayedTime>
+                          </DelayRow>
+                        ) : (
+                          flight.scheduledTime
+                        )}
+                        {flight.status && <Status $status={flight.status}>{flight.status}</Status>}
+                        {isLate && !flight.status && <Status $status="delayed">{t.delayed}</Status>}
+                      </Time>
+                    );
+                  })()}
                 </FlightHeader>
 
-                {/* 显示登机口信息（不显示航站楼） */}
-                {flight.gate && (
+                {/* 显示登机口/值机柜台信息（不显示航站楼） */}
+                {(flight.gate || flight.checkinCounter) && (
                   <Details>
-                    <DetailItem>Gate {flight.gate}</DetailItem>
+                    {flight.gate && <DetailItem>Gate {flight.gate}</DetailItem>}
+                    {flight.checkinCounter && <DetailItem>Counter {flight.checkinCounter}</DetailItem>}
                   </Details>
                 )}
               </ListItem>
@@ -851,6 +867,33 @@ const Time = styled.div<{ $hasSchedule?: boolean }>`
   flex-direction: column;
   align-items: flex-end;
   gap: 2px;
+`;
+
+const DelayRow = styled.div`
+  display: flex;
+  align-items: baseline;
+  gap: 0.35em;
+`;
+
+const ScheduledStrike = styled.span`
+  color: #9CA3AF;
+  text-decoration: line-through;
+  font-weight: 500;
+`;
+
+const DelayedTime = styled.span`
+  color: #D97706;
+  font-weight: 700;
+`;
+
+const SourceBadge = styled.span`
+  font-size: 0.65em;
+  padding: 2px 5px;
+  border-radius: 4px;
+  background: #DCFCE7;
+  color: #15803D;
+  font-weight: 700;
+  white-space: nowrap;
 `;
 
 const Status = styled.span<{ $status: string }>`

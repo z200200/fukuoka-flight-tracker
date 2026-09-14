@@ -157,6 +157,7 @@ export function FlightListsContainer() {
           flightRoutes={flightRoutes}
         />
       </ListWrapper>
+      <DataSourceNotice>{t.dataSourceNotice}</DataSourceNotice>
     </Container>
   );
 }
@@ -179,4 +180,14 @@ const Divider = styled.div`
   height: 1px;
   background: #E5E7EB;
   flex-shrink: 0;
+`;
+
+const DataSourceNotice = styled.div`
+  flex-shrink: 0;
+  padding: 6px 12px;
+  font-size: 10px;
+  color: #9CA3AF;
+  text-align: center;
+  border-top: 1px solid #E5E7EB;
+  background: #FFFFFF;
 `;

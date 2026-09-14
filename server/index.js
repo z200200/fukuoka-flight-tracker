@@ -6,6 +6,7 @@ import dotenv from 'dotenv';
 import { getAirportSchedule, matchFlight, getSupportedAirports, getApiStats } from './aerodatabox.js';
 import { validateCoordinate, validateIcao, validateCallsign, enforceMaxCacheSize } from './validators.js';
 import { logger } from './logger.js';
+import { getOfficialSchedule, matchOfficialFlight, getOfficialProviderStatus } from './official-sources/index.js';
 
 dotenv.config();
 
@@ -485,28 +486,73 @@ app.get('/api/schedule/airports', (req, res) => {
   res.json(getSupportedAirports());
 });
 
-// 获取指定机场的航班时刻表
+// 数据源状态一览（必须放在 /api/schedule/:airport 前面，否则会被吞掉）
+app.get('/api/schedule/sources/status', (req, res) => {
+  res.json(getOfficialProviderStatus());
+});
+
+// 官方数据源调试接口（同样必须在 /api/schedule/:airport 前面）
+app.get('/api/schedule/fukuoka-official/debug', async (req, res) => {
+  try {
+    const result = await getOfficialSchedule('FUK', true);
+    if (!result.available) {
+      return res.json({ ok: false, reason: result.reason });
+    }
+    res.json({
+      ok: true,
+      source: result.data.source,
+      sourceUrl: result.data.sourceUrl,
+      departures: result.data.departures.length,
+      arrivals: result.data.arrivals.length,
+      lastUpdate: result.data.lastUpdate,
+      sampleDeparture: result.data.departures[0] || null,
+      sampleArrival: result.data.arrivals[0] || null,
+    });
+  } catch (error) {
+    res.status(500).json({ ok: false, error: error.message });
+  }
+});
+
+// 获取指定机场的航班时刻表：官方源优先，失败/无数据时降级 AeroDataBox
 app.get('/api/schedule/:airport', async (req, res) => {
   const airport = req.params.airport.toUpperCase();
   const forceRefresh = req.query.refresh === 'true';
 
   try {
+    const official = await getOfficialSchedule(airport, forceRefresh);
+    if (official.available && (official.data.arrivals.length > 0 || official.data.departures.length > 0)) {
+      return res.json(official.data);
+    }
+    if (!official.available) {
+      logger.info(`[Schedule API] ${airport} official source unavailable (${official.reason}), falling back to AeroDataBox`);
+    }
+
     const data = await getAirportSchedule(airport, forceRefresh);
     if (data.error) {
       return res.status(404).json({ error: data.error });
     }
-    res.json(data);
+    res.json({
+      ...data,
+      sourceType: 'third-party',
+      sourceReliability: 'fallback',
+      fallbackReason: official.available ? 'official-source-empty' : official.reason,
+    });
   } catch (error) {
-    console.error(`[Schedule API] Error for ${airport}:`, error.message);
+    logger.error(`[Schedule API] Error for ${airport}`, error.message);
     res.status(500).json({ error: error.message });
   }
 });
 
-// 匹配航班号（跨所有机场搜索）
+// 匹配航班号（跨所有机场搜索）：官方源优先
 app.get('/api/schedule/match/:callsign', async (req, res) => {
   const callsign = req.params.callsign;
 
   try {
+    for (const iata of ['FUK', 'NRT', 'HND', 'ICN', 'PVG', 'SHA', 'DLC']) {
+      const officialMatch = await matchOfficialFlight(callsign, iata);
+      if (officialMatch) return res.json(officialMatch);
+    }
+
     const match = await matchFlight(callsign);
     res.json(match || { callsign, found: false });
   } catch (error) {
@@ -515,7 +561,7 @@ app.get('/api/schedule/match/:callsign', async (req, res) => {
   }
 });
 
-// 批量匹配航班号
+// 批量匹配航班号：官方源优先，找不到再查 AeroDataBox
 app.post('/api/schedule/match', express.json(), async (req, res) => {
   const { callsigns } = req.body;
 
@@ -525,7 +571,12 @@ app.post('/api/schedule/match', express.json(), async (req, res) => {
 
   const results = {};
   for (const cs of callsigns.slice(0, 50)) { // 限制50个
-    results[cs] = await matchFlight(cs);
+    let found = null;
+    for (const iata of ['FUK', 'NRT']) { // 目前只有这两个官方源真正实现了，其余占位provider总返回null，遍历成本可忽略
+      found = await matchOfficialFlight(cs, iata);
+      if (found) break;
+    }
+    results[cs] = found || await matchFlight(cs);
   }
 
   res.json({ matches: results, count: Object.keys(results).length });

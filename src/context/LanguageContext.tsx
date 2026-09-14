@@ -20,6 +20,9 @@ const translations = {
     departures: '出发航班',
     noArrivals: '暂无到达航班',
     noDepartures: '暂无出发航班',
+    delayed: '延误',
+    officialSource: '官方',
+    dataSourceNotice: '标"官方"为机场官方数据，其余为第三方参考数据，可能滞后；飞机位置仅供地图参考，航班状态请以机场/航空公司官方发布为准',
     from: '从',
     to: '飞往',
 
@@ -85,6 +88,9 @@ const translations = {
     departures: '出発便',
     noArrivals: '到着便がありません',
     noDepartures: '出発便がありません',
+    delayed: '遅延',
+    officialSource: '公式',
+    dataSourceNotice: '「公式」表示は空港公式データ、それ以外は第三者参考データで遅延の可能性あり；飛行機位置は地図参考のみ、フライト状況は空港・航空会社の公式発表をご確認ください',
     from: '',
     to: '行き',
 
@@ -150,6 +156,9 @@ const translations = {
     departures: 'Departures',
     noArrivals: 'No arrivals',
     noDepartures: 'No departures',
+    delayed: 'Delayed',
+    officialSource: 'Official',
+    dataSourceNotice: '"Official"-tagged data comes from the airport; unmarked entries are third-party reference data that may lag. Aircraft positions are for map reference only — verify flight status with the airport/airline.',
     from: 'from',
     to: 'to',
 

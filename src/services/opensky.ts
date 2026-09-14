@@ -222,19 +222,30 @@ export interface AirportInfo {
 }
 
 // 机场时刻表类型
+// 数据源可靠度分级：官方 > 官方页面适配(实验性) > 第三方兜底 > 未知
+export type ScheduleSourceType = 'official' | 'official-api' | 'official-page-adapter' | 'third-party' | 'adsb-position' | 'unknown';
+
 export interface ScheduledFlight {
   scheduledTime: string | null;
   actualTime?: string | null;
+  estimatedTime?: string | null;
   flightNumber: string | null;
+  airline?: string | null;
+  airlineCode?: string | null;
   origin?: AirportInfo | null;      // 出发机场（到达航班有此字段）
   destination?: AirportInfo | null;  // 目的机场（出发航班有此字段）
   status?: string | null;
+  remarks?: string | null;         // 原始状态文本（如官方源的日语原文），供tooltip等使用
   gate?: string | null;
   terminal?: string | null;
+  checkinCounter?: string | null;
   airport?: string;      // 匹配到的机场代码 (FUK/HND/NRT/ICN)
   direction?: string;    // 'arrival' | 'departure'
   airportName?: string;
   found?: boolean;
+  dataSource?: string | null;      // 例: 'official-fukuoka-airport'
+  sourceLabel?: string | null;
+  sourceType?: ScheduleSourceType | null;
 }
 
 export interface AirportSchedule {
@@ -244,6 +255,12 @@ export interface AirportSchedule {
   departures: ScheduledFlight[];
   arrivals: ScheduledFlight[];
   lastUpdate: number;
+  source?: string;
+  sourceUrl?: string;
+  sourceType?: ScheduleSourceType;
+  sourceReliability?: 'official' | 'fallback' | 'reference';
+  cacheTtlMs?: number;
+  fallbackReason?: string;
 }
 
 // 判断错误是否值得重试：区分限流/服务不可用/网络错误（可重试） vs 客户端错误（不可重试）
