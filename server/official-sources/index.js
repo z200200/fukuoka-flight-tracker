@@ -28,7 +28,9 @@ export async function getOfficialSchedule(iataCode, forceRefresh = false) {
     return { available: false, reason: 'no-official-source-configured' };
   }
   try {
-    const result = await provider.getSchedule(forceRefresh);
+    // 第二个参数iataCode：绝大多数provider(一机场一模块)会直接忽略它，只有shanghai.js
+    // 这种"一个接口同时覆盖PVG+SHA两个机场"的provider才需要用它做机场过滤
+    const result = await provider.getSchedule(forceRefresh, iataCode);
     return result;
   } catch (error) {
     return { available: false, reason: `official-source-error: ${error.message}` };
