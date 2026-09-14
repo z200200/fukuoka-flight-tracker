@@ -1,8 +1,48 @@
 import { createContext, useContext, useState, useCallback, useEffect, useRef, type ReactNode } from 'react';
 import { useOpenSkyApi } from '../hooks/useOpenSkyApi';
-import type { Flight, RateLimitInfo, TrackWaypoint } from '../types/flight';
+import { FlightSchema, type Flight, type RateLimitInfo, type TrackWaypoint } from '../types/flight';
 import { AIRPORTS, DEFAULT_AIRPORT, type AirportId, type AirportConfig } from '../config/airports';
 import type { RouteInfo, ScheduledFlight } from '../services/opensky';
+import { logger } from '../utils/logger';
+
+// adsb.lol 转换后的原始状态形状（服务端 /api/adsb/aircraft 返回）
+interface RawAdsbState {
+  icao24: string;
+  callsign: string;
+  latitude: number | null;
+  longitude: number | null;
+  baro_altitude: number | null;
+  velocity: number | null;
+  true_track: number | null;
+  on_ground: boolean;
+  origin_country: string;
+}
+
+// 构造候选 Flight 对象（不做校验，交给 FlightSchema 统一校验）
+function buildFlightCandidate(state: RawAdsbState): unknown {
+  return {
+    icao24: state.icao24,
+    callsign: state.callsign?.trim() || null,
+    latitude: state.latitude,
+    longitude: state.longitude,
+    altitude: state.baro_altitude,
+    velocity: state.velocity,
+    heading: state.true_track,
+    onGround: state.on_ground,
+    originCountry: state.origin_country,
+    lastContact: Math.floor(Date.now() / 1000),
+    departureAirport: null,
+    arrivalAirport: null,
+  };
+}
+
+// 用 Zod 校验候选对象，格式不对（外部API返回异常字段）时丢弃并记录警告，而不是让脏数据流入地图渲染
+function toValidatedFlight(candidate: unknown): Flight | null {
+  const result = FlightSchema.safeParse(candidate);
+  if (result.success) return result.data;
+  logger.warn('[FlightContext] Dropping invalid flight record from adsb.lol', result.error.issues);
+  return null;
+}
 
 // 航线信息类型
 export type { RouteInfo, ScheduledFlight } from '../services/opensky';
@@ -128,34 +168,13 @@ export function FlightProvider({ children }: FlightProviderProps) {
 
       if (adsbResponse?.states && Array.isArray(adsbResponse.states)) {
         // adsb.lol returns objects directly, cast to unknown first
-        const states = adsbResponse.states as unknown as Array<{
-          icao24: string;
-          callsign: string;
-          latitude: number | null;
-          longitude: number | null;
-          baro_altitude: number | null;
-          velocity: number | null;
-          true_track: number | null;
-          on_ground: boolean;
-          origin_country: string;
-        }>;
+        const states = adsbResponse.states as unknown as RawAdsbState[];
         const flightData = states
           .filter((state) => state.latitude !== null && state.longitude !== null)
           .filter((state) => !state.on_ground) // 只显示空中的飞机
-          .map((state) => ({
-            icao24: state.icao24,
-            callsign: state.callsign?.trim() || null,
-            latitude: state.latitude as number,
-            longitude: state.longitude as number,
-            altitude: state.baro_altitude,
-            velocity: state.velocity,
-            heading: state.true_track,
-            onGround: state.on_ground,
-            originCountry: state.origin_country,
-            lastContact: Math.floor(Date.now() / 1000),
-            departureAirport: null,
-            arrivalAirport: null,
-          }));
+          .map(buildFlightCandidate)
+          .map(toValidatedFlight)
+          .filter((f): f is Flight => f !== null);
         setFlights(flightData);
         console.log(`[FlightContext] Manual refresh: ${flightData.length} aircraft from adsb.lol`);
       } else {
@@ -238,34 +257,13 @@ export function FlightProvider({ children }: FlightProviderProps) {
       );
 
       if (adsbResponse?.states && Array.isArray(adsbResponse.states)) {
-        const states = adsbResponse.states as unknown as Array<{
-          icao24: string;
-          callsign: string;
-          latitude: number | null;
-          longitude: number | null;
-          baro_altitude: number | null;
-          velocity: number | null;
-          true_track: number | null;
-          on_ground: boolean;
-          origin_country: string;
-        }>;
+        const states = adsbResponse.states as unknown as RawAdsbState[];
         const flightData = states
           .filter((state) => state.latitude !== null && state.longitude !== null)
           .filter((state) => !state.on_ground)
-          .map((state) => ({
-            icao24: state.icao24,
-            callsign: state.callsign?.trim() || null,
-            latitude: state.latitude as number,
-            longitude: state.longitude as number,
-            altitude: state.baro_altitude,
-            velocity: state.velocity,
-            heading: state.true_track,
-            onGround: state.on_ground,
-            originCountry: state.origin_country,
-            lastContact: Math.floor(Date.now() / 1000),
-            departureAirport: null,
-            arrivalAirport: null,
-          }));
+          .map(buildFlightCandidate)
+          .map(toValidatedFlight)
+          .filter((f): f is Flight => f !== null);
 
         if (flightData.length > 0) {
           // 锁定这批飞机的 ICAO
@@ -295,21 +293,11 @@ export function FlightProvider({ children }: FlightProviderProps) {
       );
 
       if (adsbResponse?.states && Array.isArray(adsbResponse.states)) {
-        const states = adsbResponse.states as unknown as Array<{
-          icao24: string;
-          callsign: string;
-          latitude: number | null;
-          longitude: number | null;
-          baro_altitude: number | null;
-          velocity: number | null;
-          true_track: number | null;
-          on_ground: boolean;
-          origin_country: string;
-        }>;
+        const states = adsbResponse.states as unknown as RawAdsbState[];
 
         // 直接使用所有返回的飞机数据，不再严格锁定 ICAO24
         // adsb.lol API 每次返回的飞机集合可能完全不同
-        const newPositions = new Map<string, typeof states[0]>();
+        const newPositions = new Map<string, RawAdsbState>();
         states.forEach(s => {
           // 移除 on_ground 过滤，因为有些飞机在低空时也可能被标记为 on_ground
           if (s.icao24 && s.latitude && s.longitude) {
@@ -322,20 +310,10 @@ export function FlightProvider({ children }: FlightProviderProps) {
           lockedIcaosRef.current = new Set(newPositions.keys());
 
           // 直接替换飞机列表为最新数据
-          const flightData = Array.from(newPositions.values()).map(state => ({
-            icao24: state.icao24,
-            callsign: state.callsign?.trim() || null,
-            latitude: state.latitude as number,
-            longitude: state.longitude as number,
-            altitude: state.baro_altitude,
-            velocity: state.velocity,
-            heading: state.true_track,
-            onGround: state.on_ground,
-            originCountry: state.origin_country,
-            lastContact: Math.floor(Date.now() / 1000),
-            departureAirport: null,
-            arrivalAirport: null,
-          }));
+          const flightData = Array.from(newPositions.values())
+            .map(buildFlightCandidate)
+            .map(toValidatedFlight)
+            .filter((f): f is Flight => f !== null);
 
           setFlights(flightData);
           console.log(`[FlightContext] Updated positions: ${newPositions.size} aircraft in range`);

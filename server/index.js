@@ -4,6 +4,8 @@ import axios from 'axios';
 import dotenv from 'dotenv';
 // AeroDataBox API (替代 Playwright 爬虫)
 import { getAirportSchedule, matchFlight, getSupportedAirports, getApiStats } from './aerodatabox.js';
+import { validateCoordinate, validateIcao, validateCallsign, enforceMaxCacheSize } from './validators.js';
+import { logger } from './logger.js';
 
 dotenv.config();
 
@@ -43,7 +45,7 @@ function rateLimit(req, res, next) {
 
   record.count++;
   if (record.count > RATE_LIMIT_MAX) {
-    console.warn(`[RateLimit] IP ${ip} exceeded limit (${record.count}/${RATE_LIMIT_MAX})`);
+    logger.warn(`[RateLimit] IP ${ip} exceeded limit (${record.count}/${RATE_LIMIT_MAX})`);
     return res.status(429).json({
       error: 'Too many requests',
       retryAfter: Math.ceil((record.resetTime - now) / 1000)
@@ -65,42 +67,6 @@ setInterval(() => {
 
 // 应用速率限制到所有API路由
 app.use('/api/', rateLimit);
-
-// ========== 输入验证工具函数 ==========
-function validateCoordinate(value, name, min, max) {
-  const num = parseFloat(value);
-  if (isNaN(num)) {
-    return { valid: false, error: `${name} must be a number` };
-  }
-  if (num < min || num > max) {
-    return { valid: false, error: `${name} must be between ${min} and ${max}` };
-  }
-  return { valid: true, value: num };
-}
-
-function validateIcao(icao) {
-  if (!icao || typeof icao !== 'string') {
-    return { valid: false, error: 'ICAO code is required' };
-  }
-  // ICAO24 应该是6位十六进制
-  const clean = icao.toLowerCase().trim();
-  if (!/^[0-9a-f]{6}$/.test(clean)) {
-    return { valid: false, error: 'ICAO code must be 6 hexadecimal characters' };
-  }
-  return { valid: true, value: clean };
-}
-
-function validateCallsign(callsign) {
-  if (!callsign || typeof callsign !== 'string') {
-    return { valid: false, error: 'Callsign is required' };
-  }
-  const clean = callsign.trim().toUpperCase();
-  // 呼号：2-8位字母数字
-  if (!/^[A-Z0-9]{2,8}$/.test(clean)) {
-    return { valid: false, error: 'Callsign must be 2-8 alphanumeric characters' };
-  }
-  return { valid: true, value: clean };
-}
 
 // Token cache
 let cachedToken = null;
@@ -138,11 +104,10 @@ async function getToken() {
     cachedToken = response.data.access_token;
     tokenExpiry = Date.now() + response.data.expires_in * 1000;
 
-    console.log('✅ Token obtained successfully');
+    logger.info('Token obtained successfully');
     return cachedToken;
   } catch (error) {
-    console.error('❌ Failed to get token:', error.message);
-    console.log('⚠️ Falling back to anonymous mode');
+    logger.error('Failed to get token, falling back to anonymous mode', error.message);
     return null;
   }
 }
@@ -163,19 +128,6 @@ const TRACK_CACHE_MAX_SIZE = 500; // 最多缓存500架飞机的航迹
 const routeCache = new Map(); // callsign -> { origin, destination, route, fetchedAt }
 const ROUTE_CACHE_MAX_AGE = 60 * 60 * 1000; // 1小时
 const ROUTE_CACHE_MAX_SIZE = 2000; // 最多缓存2000条航线
-
-// 缓存大小控制：删除最旧的条目
-function enforceMaxCacheSize(cache, maxSize, getName = (k) => k) {
-  if (cache.size <= maxSize) return;
-
-  // 找出最旧的条目并删除
-  const entriesToDelete = cache.size - maxSize;
-  const keys = Array.from(cache.keys());
-  for (let i = 0; i < entriesToDelete; i++) {
-    console.log(`[Cache] Removing oldest entry: ${getName(keys[i])}`);
-    cache.delete(keys[i]);
-  }
-}
 
 // 定期清理过期数据
 setInterval(() => {

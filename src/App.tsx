@@ -1,14 +1,17 @@
 import { FlightProvider } from './context/FlightContext';
 import { LanguageProvider } from './context/LanguageContext';
 import { DashboardLayout } from './components/DashboardLayout';
+import { ErrorBoundary } from './components/ErrorBoundary';
 
 function App() {
   return (
-    <LanguageProvider>
-      <FlightProvider>
-        <DashboardLayout />
-      </FlightProvider>
-    </LanguageProvider>
+    <ErrorBoundary>
+      <LanguageProvider>
+        <FlightProvider>
+          <DashboardLayout />
+        </FlightProvider>
+      </LanguageProvider>
+    </ErrorBoundary>
   );
 }
 

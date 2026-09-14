@@ -1,10 +1,11 @@
-import axios, { type AxiosInstance } from 'axios';
+import axios, { isAxiosError, type AxiosInstance } from 'axios';
 import type {
   StatesResponse,
   FlightInfo,
   FlightTrack,
   RateLimitInfo,
 } from '../types/flight';
+import { logger } from '../utils/logger';
 
 const BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001/api';
 
@@ -245,11 +246,41 @@ export interface AirportSchedule {
   lastUpdate: number;
 }
 
+// 判断错误是否值得重试：区分限流/服务不可用/网络错误（可重试） vs 客户端错误（不可重试）
+export function isRetryableError(error: unknown): boolean {
+  if (isAxiosError(error)) {
+    const status = error.response?.status;
+    if (status === 429 || status === 503) return true;
+    if (error.code === 'ECONNABORTED' || error.code === 'ENOTFOUND' || error.code === 'ECONNREFUSED') return true;
+    // 有响应但状态码不在可重试范围内（如4xx客户端错误）：不重试
+    if (error.response) return false;
+    // 请求发出但没有收到响应（网络中断/超时）：可重试
+    return true;
+  }
+  // 非axios错误（如代码本身抛出的异常），保守起见按可重试处理
+  return true;
+}
+
+// 计算重试延迟：优先读取服务端返回的 retry-after，否则指数退避
+function getRetryDelayMs(error: unknown, attempt: number, baseDelay: number): number {
+  if (isAxiosError(error)) {
+    const retryAfter =
+      error.response?.headers?.['x-rate-limit-retry-after-seconds'] ??
+      error.response?.headers?.['retry-after'];
+    if (retryAfter !== undefined) {
+      const seconds = parseInt(String(retryAfter), 10);
+      if (!isNaN(seconds)) return Math.min(seconds * 1000, 120000);
+    }
+  }
+  return baseDelay * Math.pow(2, attempt);
+}
+
 // Exponential backoff utility
 export async function withExponentialBackoff<T>(
   fn: () => Promise<T>,
   maxRetries: number = 5,
-  baseDelay: number = 2000
+  baseDelay: number = 2000,
+  options?: { onRetry?: (attempt: number, error: unknown) => void }
 ): Promise<T> {
   let attempt = 0;
 
@@ -259,26 +290,14 @@ export async function withExponentialBackoff<T>(
     } catch (error: unknown) {
       attempt++;
 
-      if (attempt >= maxRetries) {
+      if (!isRetryableError(error) || attempt >= maxRetries) {
         throw error;
       }
 
-      const errorMessage = error instanceof Error ? error.message : '';
-      if (errorMessage.includes('Rate limited')) {
-        // Extract retry time from error message or use exponential backoff
-        const match = errorMessage.match(/Retry after (\d+) seconds/);
-        const retrySeconds = match ? parseInt(match[1], 10) : 0;
-        const delay = retrySeconds
-          ? Math.min(retrySeconds * 1000, 120000)
-          : baseDelay * Math.pow(2, attempt);
-
-        console.log(`Rate limited. Retrying after ${delay}ms (attempt ${attempt}/${maxRetries})...`);
-        await new Promise((resolve) => setTimeout(resolve, delay));
-      } else {
-        // For other errors, use exponential backoff
-        const delay = baseDelay * Math.pow(2, attempt);
-        await new Promise((resolve) => setTimeout(resolve, delay));
-      }
+      const delay = getRetryDelayMs(error, attempt, baseDelay);
+      options?.onRetry?.(attempt, error);
+      logger.warn(`Retrying after ${delay}ms (attempt ${attempt}/${maxRetries})`, error);
+      await new Promise((resolve) => setTimeout(resolve, delay));
     }
   }
 

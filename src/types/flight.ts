@@ -1,3 +1,5 @@
+import { z } from 'zod';
+
 // OpenSky API Response Types
 
 export interface StateVector {
@@ -59,6 +61,23 @@ export interface FlightTrack {
 }
 
 // Application Types
+
+// 运行时校验：adsb.lol 是外部数据源，格式可能变化或返回异常字段，
+// 在进入应用状态前用 Zod 校验，格式不对的记录直接丢弃而不是让 NaN/undefined 流入地图渲染
+export const FlightSchema = z.object({
+  icao24: z.string().min(1),
+  callsign: z.string().nullable(),
+  latitude: z.number(),
+  longitude: z.number(),
+  altitude: z.number().nullable(),
+  velocity: z.number().nullable(),
+  heading: z.number().nullable(),
+  onGround: z.boolean(),
+  originCountry: z.string(),
+  lastContact: z.number(),
+  departureAirport: z.string().nullable(),
+  arrivalAirport: z.string().nullable(),
+});
 
 export interface Flight {
   icao24: string;
