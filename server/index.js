@@ -588,7 +588,7 @@ app.post('/api/schedule/match', express.json(), async (req, res) => {
   const results = {};
   for (const cs of callsigns.slice(0, 50)) { // 限制50个
     let found = null;
-    for (const iata of ['FUK', 'NRT']) { // 目前只有这两个官方源真正实现了，其余占位provider总返回null，遍历成本可忽略
+    for (const iata of ['FUK', 'NRT', 'HND']) { // 目前只有这三个官方源真正实现了，其余占位provider总返回null，遍历成本可忽略
       found = await matchOfficialFlight(cs, iata);
       if (found) break;
     }
