@@ -82,7 +82,10 @@ function toScheduledFlight(rec) {
     estimatedTime: formatYmdhm(rec.estimated_ymdhm),
     actualTime,
     terminal: rec.ter_div || null,
-    gate: rec.spot_num || null,
+    // 实测核对官方大屏发现字段映射反了：wicket_num才是登机口(如"81B")，
+    // spot_num是飞机停机位编号，是完全不同的概念，两者经常不一致（如NH4937：spot_num=15，
+    // 官方大屏实际显示的登机口是wicket_num=81B）。wicket_num为空时(部分到着航班)退回spot_num。
+    gate: rec.wicket_num || rec.spot_num || null,
     checkinCounter: rec.checkincounter_num || null,
     status: rec.remarks2 || null, // 只用英文字段；不回退日语原文，避免非日语界面显示未翻译文本（红队发现）
     remarks: rec.remarks || null,
