@@ -493,8 +493,9 @@ app.get('/api/schedule/sources/status', (req, res) => {
 
 // 官方数据源调试接口（同样必须在 /api/schedule/:airport 前面）
 app.get('/api/schedule/fukuoka-official/debug', async (req, res) => {
+  const forceRefresh = req.query.refresh === 'true'; // 红队指出：原先无条件true会绕开60秒缓存，对官网造成不必要的重复请求
   try {
-    const result = await getOfficialSchedule('FUK', true);
+    const result = await getOfficialSchedule('FUK', forceRefresh);
     if (!result.available) {
       return res.json({ ok: false, reason: result.reason });
     }
@@ -525,6 +526,10 @@ app.get('/api/schedule/:airport', async (req, res) => {
     }
     if (!official.available) {
       logger.info(`[Schedule API] ${airport} official source unavailable (${official.reason}), falling back to AeroDataBox`);
+    } else {
+      // 红队指出：官方源返回但两个数组都是空的这个分支之前没有任何服务端日志，
+      // 若官网JSON结构悄悄变化导致解析出0条记录，运维完全看不到信号
+      logger.info(`[Schedule API] ${airport} official source returned empty (schema drift or genuinely no flights?), falling back to AeroDataBox`);
     }
 
     const data = await getAirportSchedule(airport, forceRefresh);

@@ -84,7 +84,7 @@ function toScheduledFlight(rec) {
     terminal: rec.ter_div || null,
     gate: rec.spot_num || null,
     checkinCounter: rec.checkincounter_num || null,
-    status: rec.remarks2 || rec.remarks || null,
+    status: rec.remarks2 || null, // 只用英文字段；不回退日语原文，避免非日语界面显示未翻译文本（红队发现）
     remarks: rec.remarks || null,
     direction,
     dataSource: 'official-fukuoka-airport',
@@ -128,6 +128,13 @@ export async function getSchedule(forceRefresh = false) {
   }
 }
 
+// 提取航班号里的纯数字部分，用于ICAO(如"AAR132")/IATA(如"OZ132")格式不一致时的兜底匹配
+// （红队审查发现：ADS-B雷达callsign是ICAO格式，本模块flightNumber是IATA格式，精确匹配从不命中）
+function extractDigits(s) {
+  const match = s?.match(/(\d+)$/);
+  return match ? match[1].replace(/^0+/, '') || '0' : null;
+}
+
 export async function matchFlight(callsign) {
   if (!callsign) return null;
   const clean = callsign.trim().toUpperCase().replace(/\s+/g, '');
@@ -135,7 +142,13 @@ export async function matchFlight(callsign) {
   if (!result.available) return null;
 
   const all = [...result.data.arrivals, ...result.data.departures];
-  const found = all.find(f => f.flightNumber?.toUpperCase() === clean || f.callsign?.toUpperCase() === clean);
+  const exact = all.find(f => f.flightNumber?.toUpperCase() === clean || f.callsign?.toUpperCase() === clean);
+  if (exact) return exact;
+
+  // 精确匹配失败（多数情况，因ICAO/IATA前缀不同）：退化为数字部分匹配
+  const cleanDigits = extractDigits(clean);
+  if (!cleanDigits) return null;
+  const found = all.find(f => extractDigits(f.flightNumber) === cleanDigits);
   return found || null;
 }
 

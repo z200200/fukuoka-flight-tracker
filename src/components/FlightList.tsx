@@ -655,11 +655,16 @@ export function FlightList({ title, flights, selectedFlight, onSelect, type, cur
                       <Airline>{getAirline(flight.flightNumber, lang)}</Airline>
                     )}
                   </FlightInfoWrapper>
-                  {/* 显示计划时间和状态；实际/预估时间与计划时间不同则标注变化，仅当真的更晚才算"延误" */}
+                  {/* 显示计划时间和状态；实际/预估时间与计划时间不同则标注变化，仅当真的更晚才算"延误"
+                      跨午夜修正（红队发现）：23:50→00:15这种情况，actualMin(15) < scheduledMin(1430)，
+                      直接比较会把真延误误判成"没延误"；差值超过12小时视为跨天，加1440分钟再比较 */}
                   {flight.scheduledTime && (() => {
                     const hasTimeChange = !!flight.actualTime && flight.actualTime !== flight.scheduledTime;
                     const scheduledMin = parseTimeToMinutes(flight.scheduledTime);
-                    const actualMin = parseTimeToMinutes(flight.actualTime);
+                    let actualMin = parseTimeToMinutes(flight.actualTime);
+                    if (scheduledMin !== null && actualMin !== null && scheduledMin - actualMin > 720) {
+                      actualMin += 1440; // 跨午夜：实际时间在计划时间"之后"的次日
+                    }
                     const isLate = hasTimeChange && scheduledMin !== null && actualMin !== null && actualMin > scheduledMin;
                     return (
                       <Time $hasSchedule={true}>

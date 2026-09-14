@@ -132,6 +132,12 @@ export async function getSchedule(forceRefresh = false) {
   }
 }
 
+// 提取航班号里的纯数字部分，用于ICAO/IATA格式不一致时的兜底匹配（同fukuoka.js）
+function extractDigits(s) {
+  const match = s?.match(/(\d+)$/);
+  return match ? match[1].replace(/^0+/, '') || '0' : null;
+}
+
 export async function matchFlight(callsign) {
   if (!callsign) return null;
   const clean = callsign.trim().toUpperCase().replace(/\s+/g, '');
@@ -139,7 +145,12 @@ export async function matchFlight(callsign) {
   if (!result.available) return null;
 
   const all = [...result.data.arrivals, ...result.data.departures];
-  return all.find(f => f.flightNumber?.toUpperCase() === clean) || null;
+  const exact = all.find(f => f.flightNumber?.toUpperCase() === clean);
+  if (exact) return exact;
+
+  const cleanDigits = extractDigits(clean);
+  if (!cleanDigits) return null;
+  return all.find(f => extractDigits(f.flightNumber) === cleanDigits) || null;
 }
 
 export function getStatus() {
