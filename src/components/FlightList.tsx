@@ -504,7 +504,19 @@ export function FlightList({ title, flights, selectedFlight, onSelect, type, cur
     return (utcMinutes + japanOffset) % (24 * 60);
   }, []);
 
-  // 按计划时间排序，当前时间附近的航班排在第3位（索引2）
+  // 排序/定位当前航班都用"实际生效时间"而非纯计划时间——实测发现的真实bug：
+  // 一个计划16:00、实际延误到17:05还没落地的航班，会因为"计划时间"凑巧等于当前时间
+  // 被排到"计划16:00、实际15:50已经行李可提取"的航班前面，看起来完全没有排序逻辑。
+  // 有实际时间用实际，没有用预计，都没有才退回计划时间。
+  const effectiveMinutes = useCallback((flight: ScheduledFlight): number | null => {
+    const actual = parseTimeToMinutes(flight.actualTime);
+    if (actual !== null) return actual;
+    const estimated = parseTimeToMinutes(flight.estimatedTime);
+    if (estimated !== null) return estimated;
+    return parseTimeToMinutes(flight.scheduledTime);
+  }, []);
+
+  // 按实际生效时间排序，当前时间附近的航班排在第3位（索引2）
   const sortedFlights = useMemo(() => {
     if (!flights || flights.length === 0) return [];
 
@@ -519,23 +531,23 @@ export function FlightList({ title, flights, selectedFlight, onSelect, type, cur
         return fn.length >= 2 && /[A-Za-z]/.test(fn) && /[0-9]/.test(fn);
       })
       .sort((a, b) => {
-        const aScheduledMinutes = parseTimeToMinutes(a.scheduledTime);
-        const bScheduledMinutes = parseTimeToMinutes(b.scheduledTime);
+        const aMinutes = effectiveMinutes(a);
+        const bMinutes = effectiveMinutes(b);
 
-        if (aScheduledMinutes !== null && bScheduledMinutes !== null) {
-          return aScheduledMinutes - bScheduledMinutes;
+        if (aMinutes !== null && bMinutes !== null) {
+          return aMinutes - bMinutes;
         }
 
-        if (aScheduledMinutes !== null && bScheduledMinutes === null) return -1;
-        if (aScheduledMinutes === null && bScheduledMinutes !== null) return 1;
+        if (aMinutes !== null && bMinutes === null) return -1;
+        if (aMinutes === null && bMinutes !== null) return 1;
 
         return (a.flightNumber || '').localeCompare(b.flightNumber || '');
       });
 
-    // 找到第一个计划时间 >= 当前时间的航班索引
+    // 找到第一个生效时间 >= 当前时间的航班索引
     let nextFlightIdx = allFlights.findIndex(f => {
-      const scheduledMinutes = parseTimeToMinutes(f.scheduledTime);
-      return scheduledMinutes !== null && scheduledMinutes >= currentMinutes;
+      const minutes = effectiveMinutes(f);
+      return minutes !== null && minutes >= currentMinutes;
     });
 
     // 如果没找到（所有航班都已过去），显示最后几班
@@ -550,25 +562,24 @@ export function FlightList({ title, flights, selectedFlight, onSelect, type, cur
 
     // 截取从startIdx开始的10个航班
     return allFlights.slice(startIdx, startIdx + 10);
-  }, [flights, getCurrentMinutes]);
+  }, [flights, getCurrentMinutes, effectiveMinutes]);
 
   // 找到"最近即将到达/出发"的航班索引
   // sortedFlights已经将当前时间最近的航班放在第3位附近
   const nextFlightIndex = useMemo(() => {
     const currentMinutes = getCurrentMinutes();
 
-    // 在sortedFlights中找到第一个计划时间 >= 当前时间的航班
+    // 在sortedFlights中找到第一个生效时间 >= 当前时间的航班
     for (let i = 0; i < sortedFlights.length; i++) {
-      const flight = sortedFlights[i];
-      const scheduledMinutes = parseTimeToMinutes(flight.scheduledTime);
+      const minutes = effectiveMinutes(sortedFlights[i]);
 
-      if (scheduledMinutes !== null && scheduledMinutes >= currentMinutes) {
+      if (minutes !== null && minutes >= currentMinutes) {
         return i;
       }
     }
     // 如果都已过去，最后一个有效
     return sortedFlights.length > 0 ? sortedFlights.length - 1 : -1;
-  }, [sortedFlights, getCurrentMinutes]);
+  }, [sortedFlights, getCurrentMinutes, effectiveMinutes]);
 
   // 标记需要滚动到的航班索引（当前时间最近的航班）
   const scrollToIndex = nextFlightIndex;
